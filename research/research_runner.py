@@ -1,5 +1,7 @@
 import os
 import pandas as pd
+import json
+import argparse
 from datetime import datetime
 from utils.data_fetcher import fetch_all_watchlist
 from research.backtest_engine import run_backtest
@@ -7,7 +9,7 @@ from config.settings import EQUITY_WATCHLIST, CRYPTO_WATCHLIST, TIMEFRAMES
 
 
 def run_research(mode: str = "equity"):
-    """Run backtests on entire watchlist"""
+    """Run research and save best tickers for live bots"""
     print(f"\n🔬 Starting Research Mode: {mode.upper()}\n")
 
     if mode == "equity":
@@ -22,20 +24,18 @@ def run_research(mode: str = "equity"):
     results = {}
     for ticker, data in data_dict.items():
         if len(data) < 100:
-            print(f"⏭️  Skipping {ticker} - not enough data ({len(data)} bars)")
+            print(f"⏭️  Skipping {ticker} - not enough data")
             continue
 
         print(f"Running backtest on {ticker}...")
         _, summary = run_backtest(
             data,
-            strategy="ma_crossover",
-            params={"short": 9, "long": 21},
+            strategy="ma_fast",
+            params={"short": 5, "long": 13},
             ticker=ticker
         )
-
         results[ticker] = summary
 
-    # Save summary safely
     if results:
         summary_df = pd.DataFrame.from_dict(results, orient='index')
         summary_df = summary_df.sort_values("total_return_pct", ascending=False)
@@ -46,16 +46,30 @@ def run_research(mode: str = "equity"):
         summary_df.to_csv(f"outputs/reports/{timestamp}_research_summary.csv")
         summary_df.to_json(f"outputs/reports/{timestamp}_research_summary.json", indent=4)
 
-        print(f"\n✅ Research Complete! Top performers:")
+        # Save best tickers for live bots
+        best_tickers = summary_df.head(8).index.tolist()
+        best_data = {
+            "mode": mode,
+            "timestamp": timestamp,
+            "top_tickers": best_tickers,
+            "total_tickers_tested": len(results)
+        }
+        with open("outputs/latest_best.json", "w") as f:
+            json.dump(best_data, f, indent=4)
+
+        print(f"\n✅ Research Complete!")
         print(summary_df.head(10))
+        print(f"\n📌 Best {len(best_tickers)} tickers saved to outputs/latest_best.json")
     else:
-        print("\n⚠️ No successful backtests. Check data fetching.")
+        print("\n⚠️ No successful backtests.")
 
     return results
 
 
 if __name__ == "__main__":
-    import sys
+    parser = argparse.ArgumentParser(description="Run research for equity or crypto")
+    parser.add_argument("--research_mode", choices=["equity", "crypto"], default="equity",
+                        help="Which market to research")
+    args = parser.parse_args()
 
-    mode = sys.argv[1] if len(sys.argv) > 1 else "equity"
-    run_research(mode=mode)
+    run_research(mode=args.research_mode)

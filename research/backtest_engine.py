@@ -1,4 +1,7 @@
 import pandas as pd
+import matplotlib
+
+matplotlib.use('Agg')  # ← This is the important fix
 import matplotlib.pyplot as plt
 import json
 import os
@@ -11,13 +14,11 @@ def run_backtest(data: pd.DataFrame, strategy: str = "ma_crossover",
         params = {}
 
     df = data.copy()
+    ticker_name = ticker or "Unknown"
 
-    # Use passed ticker or try to get from dataframe index name
-    ticker_name = ticker or getattr(df.index, 'name', None) or "Unknown"
-
-    if strategy == "ma_crossover":
-        short = params.get("short", 9)
-        long = params.get("long", 21)
+    if strategy == "ma_crossover" or strategy == "ma_fast":
+        short = params.get("short", 5)  # Faster settings
+        long = params.get("long", 13)
         df['short_ma'] = df['Close'].rolling(window=short).mean()
         df['long_ma'] = df['Close'].rolling(window=long).mean()
 
@@ -25,7 +26,6 @@ def run_backtest(data: pd.DataFrame, strategy: str = "ma_crossover",
         df.loc[df['short_ma'] > df['long_ma'], 'signal'] = 1
         df.loc[df['short_ma'] < df['long_ma'], 'signal'] = -1
 
-    # Calculate returns and equity curve
     df['returns'] = df['Close'].pct_change()
     df['strategy_returns'] = df['signal'].shift(1) * df['returns']
     df['equity'] = initial_capital * (1 + df['strategy_returns']).cumprod()
@@ -35,10 +35,8 @@ def run_backtest(data: pd.DataFrame, strategy: str = "ma_crossover",
     output_dir = f"outputs/reports/{timestamp}_{strategy}_{ticker_name}"
     os.makedirs(output_dir, exist_ok=True)
 
-    # Save full results
     df.to_csv(f"{output_dir}/full_results.csv")
 
-    # Summary
     summary = {
         "ticker": ticker_name,
         "strategy": strategy,
@@ -52,7 +50,7 @@ def run_backtest(data: pd.DataFrame, strategy: str = "ma_crossover",
     with open(f"{output_dir}/summary.json", "w") as f:
         json.dump(summary, f, indent=4)
 
-    # Generate chart
+    # Save chart safely
     plt.figure(figsize=(14, 8))
     plt.plot(df['equity'], label='Strategy Equity', linewidth=2)
     plt.title(f"{strategy.upper()} Backtest - {ticker_name} | Return: {summary['total_return_pct']:.2f}%")
@@ -60,7 +58,7 @@ def run_backtest(data: pd.DataFrame, strategy: str = "ma_crossover",
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.savefig(f"outputs/charts/{timestamp}_{ticker_name}.png", dpi=200)
-    plt.close()
+    plt.close()  # Important: always close the figure
 
     print(f"   ✅ {ticker_name} → Return: {summary['total_return_pct']:.2f}% | DD: {summary['max_drawdown_pct']:.2f}%")
     return df, summary

@@ -1,0 +1,15 @@
+{
+    "mode": "crypto",
+    "timestamp": "2026-03-31_13-39",
+    "top_tickers": [
+        "XRP-USD",
+        "LINK-USD",
+        "ETC-USD",
+        "ETH-USD",
+        "BNB-USD",
+        "DOT-USD",
+        "ATOM-USD",
+        "FIL-USD"
+    ],
+    "total_tickers_tested": 17
+}
