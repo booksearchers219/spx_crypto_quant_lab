@@ -1,0 +1,90 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="annotated-types" />
+          <option value="anyio" />
+          <option value="beautifulsoup4" />
+          <option value="bitarray" />
+          <option value="bitstring" />
+          <option value="blinker" />
+          <option value="certifi" />
+          <option value="cffi" />
+          <option value="charset-normalizer" />
+          <option value="click" />
+          <option value="contourpy" />
+          <option value="cryptography" />
+          <option value="curl_cffi" />
+          <option value="cycler" />
+          <option value="distro" />
+          <option value="docopt" />
+          <option value="esptool" />
+          <option value="exceptiongroup" />
+          <option value="feedparser" />
+          <option value="Flask" />
+          <option value="fonttools" />
+          <option value="frozendict" />
+          <option value="grip" />
+          <option value="h11" />
+          <option value="httpcore" />
+          <option value="httpx" />
+          <option value="idna" />
+          <option value="intelhex" />
+          <option value="itsdangerous" />
+          <option value="Jinja2" />
+          <option value="jiter" />
+          <option value="kiwisolver" />
+          <option value="lxml" />
+          <option value="Markdown" />
+          <option value="markdown-it-py" />
+          <option value="MarkupSafe" />
+          <option value="matplotlib" />
+          <option value="mdurl" />
+          <option value="multitasking" />
+          <option value="narwhals" />
+          <option value="numpy" />
+          <option value="openai" />
+          <option value="packaging" />
+          <option value="pandas" />
+          <option value="pandas-datareader" />
+          <option value="path-and-address" />
+          <option value="peewee" />
+          <option value="pillow" />
+          <option value="platformdirs" />
+          <option value="plotly" />
+          <option value="protobuf" />
+          <option value="pycparser" />
+          <option value="pydantic" />
+          <option value="pydantic_core" />
+          <option value="Pygments" />
+          <option value="pyparsing" />
+          <option value="pyserial" />
+          <option value="python-dateutil" />
+          <option value="pytz" />
+          <option value="PyYAML" />
+          <option value="reedsolo" />
+          <option value="requests" />
+          <option value="rich" />
+          <option value="rich-click" />
+          <option value="ruff" />
+          <option value="sgmllib3k" />
+          <option value="six" />
+          <option value="sniffio" />
+          <option value="soupsieve" />
+          <option value="tomli" />
+          <option value="tqdm" />
+          <option value="typing-inspection" />
+          <option value="typing_extensions" />
+          <option value="tzdata" />
+          <option value="urllib3" />
+          <option value="vulture" />
+          <option value="websockets" />
+          <option value="Werkzeug" />
+          <option value="yfinance" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>

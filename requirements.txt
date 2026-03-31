@@ -1,0 +1,9 @@
+pandas
+numpy
+matplotlib
+seaborn
+python-dotenv
+yfinance
+ccxt
+schedule
+pytz
