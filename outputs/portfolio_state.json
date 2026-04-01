@@ -1,0 +1,35 @@
+{
+    "cash": 468.8874721335194,
+    "positions": {
+        "ADA-USD": {
+            "quantity": 0.000389244265197481,
+            "entry_price": 0.24169912934303284
+        },
+        "XRP-USD": {
+            "quantity": 21909.715359447393,
+            "entry_price": 1.339057445526123
+        },
+        "LINK-USD": {
+            "quantity": 66.7441238786842,
+            "entry_price": 8.791296005249023
+        },
+        "AVAX-USD": {
+            "quantity": 1.343138101461512,
+            "entry_price": 8.90909481048584
+        },
+        "BNB-USD": {
+            "quantity": 7.737523586081744e-06,
+            "entry_price": 618.6033325195312
+        },
+        "XLM-USD": {
+            "quantity": 0.0005674906954214193,
+            "entry_price": 0.16868850588798523
+        },
+        "ETC-USD": {
+            "quantity": 14.132792541267039,
+            "entry_price": 8.294149398803711
+        }
+    },
+    "initial_capital": 30000.0,
+    "last_updated": "2026-04-01T05:46:41.355279"
+}

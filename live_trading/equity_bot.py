@@ -1,6 +1,7 @@
 import time
 import schedule
 import json
+import os
 import matplotlib
 
 matplotlib.use('Agg')
@@ -17,27 +18,34 @@ risk_manager = RiskManager(capital=30000)
 
 
 def load_best_equity_tickers():
-    """Force load only equity tickers"""
-    try:
-        with open("outputs/latest_best.json", "r") as f:
-            data = json.load(f)
-            if data.get("mode") == "equity":
+    """Smart loading: use recent research if available (less than 6 hours old)"""
+    research_file = "outputs/latest_best.json"
+
+    if os.path.exists(research_file):
+        try:
+            file_age_hours = (time.time() - os.path.getmtime(research_file)) / 3600
+            with open(research_file, "r") as f:
+                data = json.load(f)
+
+            if data.get("mode") == "equity" and file_age_hours < 6:
+                print(f"📋 Using recent equity research ({file_age_hours:.1f}h old)")
                 return data.get("top_tickers", [])
             else:
-                print("⚠️ Latest research was for crypto → Running fresh equity research")
-    except:
-        print("⚠️ No research file found → Running fresh equity research")
+                print(f"📋 Research is {file_age_hours:.1f}h old → Running fresh research")
+        except Exception as e:
+            print(f"⚠️ Error reading research file: {e}")
 
-    # Run fresh research for equity
+    print("🔬 Running fresh equity research...")
     run_research(mode="equity")
 
-    # Load again
     try:
-        with open("outputs/latest_best.json", "r") as f:
+        with open(research_file, "r") as f:
             data = json.load(f)
             return data.get("top_tickers", [])
     except:
+        print("⚠️ Failed to load research, falling back to watchlist")
         return load_watchlist(EQUITY_WATCHLIST)
+
 
 
 def is_market_open():
@@ -53,7 +61,7 @@ def run_equity_cycle():
     print(f"\n📈 Equity Bot Cycle - {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
     active_tickers = load_best_equity_tickers()
-    print(f"Using {len(active_tickers)} equity tickers from research: {active_tickers[:6]}")
+    print(f"Using {len(active_tickers)} equity tickers: {active_tickers[:6]}")
 
     current_prices = {}
     for ticker in active_tickers[:8]:
@@ -64,14 +72,14 @@ def run_equity_cycle():
         current_price = data['Close'].iloc[-1]
         current_prices[ticker] = current_price
 
-        _, summary = run_backtest(
+        df, summary = run_backtest(
             data,
-            strategy="ma_fast",
-            params={"short": 3, "long": 8},
+            strategy="ma_slow",
+            params={"short": 20, "long": 50},  # Slower = longer holds
             ticker=ticker
         )
 
-        signal = summary.get("signal", 0)
+        signal = df['signal'].iloc[-1] if 'signal' in df.columns else 0
 
         if signal == 1 and ticker not in risk_manager.positions:
             risk_manager.open_position(ticker, current_price)
@@ -84,8 +92,8 @@ def run_equity_cycle():
 
 
 if __name__ == "__main__":
-    print("📈 Starting Equity Bot (Equity-only tickers)...")
-    schedule.every(4).hours.do(lambda: run_research(mode="equity"))
+    print("📈 Starting Equity Bot (Equity-only tickers with smart research)...")
+    schedule.every(6).hours.do(lambda: run_research(mode="equity"))
 
     run_equity_cycle()
     schedule.every(30).minutes.do(run_equity_cycle)

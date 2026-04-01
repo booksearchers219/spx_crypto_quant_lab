@@ -1,14 +1,14 @@
 import pandas as pd
 import matplotlib
 
-matplotlib.use('Agg')  # ← This is the important fix
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import json
 import os
 from datetime import datetime
 
 
-def run_backtest(data: pd.DataFrame, strategy: str = "ma_crossover",
+def run_backtest(data: pd.DataFrame, strategy: str = "ma_slow",
                  params: dict = None, initial_capital=10000, ticker: str = None):
     if params is None:
         params = {}
@@ -16,21 +16,27 @@ def run_backtest(data: pd.DataFrame, strategy: str = "ma_crossover",
     df = data.copy()
     ticker_name = ticker or "Unknown"
 
-    if strategy == "ma_crossover" or strategy == "ma_fast":
-        short = params.get("short", 5)  # Faster settings
-        long = params.get("long", 13)
-        df['short_ma'] = df['Close'].rolling(window=short).mean()
-        df['long_ma'] = df['Close'].rolling(window=long).mean()
+    # Simple and safe slow MA crossover
+    short = params.get("short", 20)
+    long = params.get("long", 50)
 
-        df['signal'] = 0
-        df.loc[df['short_ma'] > df['long_ma'], 'signal'] = 1
-        df.loc[df['short_ma'] < df['long_ma'], 'signal'] = -1
+    df['short_ma'] = df['Close'].rolling(window=short).mean()
+    df['long_ma'] = df['Close'].rolling(window=long).mean()
 
+    # Drop NaNs safely
+    df = df.dropna().copy()
+
+    # Basic signal - no complex filters that cause alignment errors
+    df['signal'] = 0
+    df.loc[df['short_ma'] > df['long_ma'], 'signal'] = 1
+    df.loc[df['short_ma'] < df['long_ma'], 'signal'] = -1
+
+    # Performance calculation
     df['returns'] = df['Close'].pct_change()
     df['strategy_returns'] = df['signal'].shift(1) * df['returns']
     df['equity'] = initial_capital * (1 + df['strategy_returns']).cumprod()
 
-    # Generate outputs
+    # Save outputs
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     output_dir = f"outputs/reports/{timestamp}_{strategy}_{ticker_name}"
     os.makedirs(output_dir, exist_ok=True)
@@ -50,15 +56,15 @@ def run_backtest(data: pd.DataFrame, strategy: str = "ma_crossover",
     with open(f"{output_dir}/summary.json", "w") as f:
         json.dump(summary, f, indent=4)
 
-    # Save chart safely
+    # Chart
     plt.figure(figsize=(14, 8))
     plt.plot(df['equity'], label='Strategy Equity', linewidth=2)
-    plt.title(f"{strategy.upper()} Backtest - {ticker_name} | Return: {summary['total_return_pct']:.2f}%")
+    plt.title(f"Slow MA - {ticker_name} | Return: {summary['total_return_pct']:.2f}%")
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.savefig(f"outputs/charts/{timestamp}_{ticker_name}.png", dpi=200)
-    plt.close()  # Important: always close the figure
+    plt.close()
 
     print(f"   ✅ {ticker_name} → Return: {summary['total_return_pct']:.2f}% | DD: {summary['max_drawdown_pct']:.2f}%")
     return df, summary

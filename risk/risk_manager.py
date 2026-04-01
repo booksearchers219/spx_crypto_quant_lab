@@ -5,45 +5,51 @@ from datetime import datetime
 
 class RiskManager:
     def __init__(self, capital: float = 30000):
-        self.initial_capital = capital
-        self.cash = capital
-        self.positions = {}  # ticker -> {'quantity': qty, 'entry_price': price}
+        self.initial_capital = float(capital)
+        self.cash = float(capital)
+        self.positions = {}
         self.trade_history = []
         self.load_state()
 
     def get_current_value(self, price_dict: dict) -> float:
-        """Calculate total portfolio value (cash + positions)"""
         value = self.cash
         for ticker, pos in self.positions.items():
             if ticker in price_dict:
-                value += pos['quantity'] * price_dict[ticker]
+                price = price_dict[ticker]
+                # Safe conversion
+                price = float(price.iloc[0]) if hasattr(price, 'iloc') else float(price)
+                value += float(pos['quantity']) * price
         return value
 
-    def open_position(self, ticker: str, price: float, fraction: float = 0.98):
-        """Open a virtual long position"""
+    def open_position(self, ticker: str, price, fraction: float = 0.20):  # ← Changed to 20% max per trade
         if ticker in self.positions:
-            print(f"⚠️ Already in position for {ticker}")
             return False
 
+        price = float(price.iloc[0]) if hasattr(price, 'iloc') else float(price)
         investment = self.cash * fraction
+        if investment < 100:  # Minimum trade size
+            return False
+
         quantity = investment / price
 
-        self.positions[ticker] = {'quantity': quantity, 'entry_price': price}
+        self.positions[ticker] = {
+            'quantity': float(quantity),
+            'entry_price': float(price)
+        }
         self.cash -= investment
 
         self._log_trade(ticker, "BUY", quantity, price)
-        print(f"🟢 VIRTUAL BUY → {ticker} | Qty: {quantity:.6f} | Price: ${price:.4f}")
+        print(f"🟢 VIRTUAL BUY → {ticker} | Qty: {quantity:.6f} | Price: ${price:.4f} | Invested: ${investment:,.2f}")
         return True
 
-    def close_position(self, ticker: str, price: float):
-        """Close virtual position"""
+    def close_position(self, ticker: str, price):
         if ticker not in self.positions:
             return False
 
+        price = float(price.iloc[0]) if hasattr(price, 'iloc') else float(price)
         pos = self.positions[ticker]
         proceeds = pos['quantity'] * price
         self.cash += proceeds
-
         pnl = (price - pos['entry_price']) * pos['quantity']
 
         self._log_trade(ticker, "SELL", pos['quantity'], price, pnl)
@@ -52,7 +58,7 @@ class RiskManager:
         del self.positions[ticker]
         return True
 
-    def _log_trade(self, ticker, action, quantity, price, pnl=0):
+    def _log_trade(self, ticker, action, quantity, price, pnl=0.0):
         trade = {
             "timestamp": datetime.now().isoformat(),
             "ticker": ticker,
@@ -66,9 +72,9 @@ class RiskManager:
 
     def save_state(self):
         state = {
-            "cash": self.cash,
+            "cash": float(self.cash),
             "positions": self.positions,
-            "initial_capital": self.initial_capital,
+            "initial_capital": float(self.initial_capital),
             "last_updated": datetime.now().isoformat()
         }
         os.makedirs("outputs", exist_ok=True)
@@ -79,7 +85,7 @@ class RiskManager:
         try:
             with open("outputs/portfolio_state.json", "r") as f:
                 state = json.load(f)
-                self.cash = state.get("cash", self.initial_capital)
+                self.cash = float(state.get("cash", self.initial_capital))
                 self.positions = state.get("positions", {})
         except:
             pass
