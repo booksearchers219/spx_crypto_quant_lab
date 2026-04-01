@@ -12,8 +12,16 @@ class RiskManager:
         self.trade_history = []
         self.load_state()
 
+    def reset(self):
+        """Reset portfolio back to initial $30,000"""
+        self.cash = float(self.initial_capital)
+        self.positions = {}
+        self.trade_history = []
+        self.save_state()
+        print(f"🔄 {self.name.upper()} Portfolio RESET to ${self.initial_capital:,.2f}")
+
     def get_current_value(self, price_dict: dict) -> float:
-        value = self.cash
+        value = float(self.cash)
         for ticker, pos in self.positions.items():
             if ticker in price_dict:
                 price = price_dict[ticker]

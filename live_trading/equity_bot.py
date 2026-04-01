@@ -83,6 +83,18 @@ def run_equity_cycle():
             risk_manager.close_position(ticker, current_price)
 
     total_value = risk_manager.get_current_value(current_prices)
+
+    from utils.equity_logger import log_portfolio
+
+    # Log for graphing
+    log_portfolio(
+        bot_name="Crypto" if "crypto" in __file__ else "Equity",
+        cash=risk_manager.cash,
+        total_value=total_value,
+        positions_count=len(risk_manager.positions),
+        unrealized_pnl=total_value - risk_manager.initial_capital
+    )
+
     print(f"💰 Equity Portfolio Summary")
     print(f"   Cash        : ${risk_manager.cash:,.2f}")
     print(f"   Total Value : ${total_value:,.2f}")

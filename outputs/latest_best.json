@@ -1,15 +1,15 @@
 {
-    "mode": "equity",
-    "timestamp": "2026-04-01_09-02",
+    "mode": "crypto",
+    "timestamp": "2026-04-01_12-14",
     "top_tickers": [
-        "SMCI",
-        "INTC",
-        "UPST",
-        "LYFT",
-        "MU",
-        "HOOD",
-        "TSLA",
-        "SOFI"
+        "XRP-USD",
+        "ETC-USD",
+        "LINK-USD",
+        "ETH-USD",
+        "BNB-USD",
+        "ARB-USD",
+        "ATOM-USD",
+        "DOT-USD"
     ],
-    "total_tickers_tested": 62
+    "total_tickers_tested": 17
 }
