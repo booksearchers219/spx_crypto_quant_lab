@@ -1,0 +1,28 @@
+{
+    "name": "crypto",
+    "cash": 9830.4,
+    "positions": {
+        "XRP-USD": {
+            "quantity": 4452.513809816034,
+            "entry_price": 1.3475533723831177
+        },
+        "ETC-USD": {
+            "quantity": 583.0164629284099,
+            "entry_price": 8.233043670654297
+        },
+        "LINK-USD": {
+            "quantity": 428.95571920811557,
+            "entry_price": 8.951972961425781
+        },
+        "ETH-USD": {
+            "quantity": 1.448188209849383,
+            "entry_price": 2121.271240234375
+        },
+        "DOT-USD": {
+            "quantity": 1932.8680470739837,
+            "entry_price": 1.2714784145355225
+        }
+    },
+    "initial_capital": 30000.0,
+    "last_updated": "2026-04-01T07:05:27.908256"
+}

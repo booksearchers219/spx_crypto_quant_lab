@@ -1,0 +1,36 @@
+{
+    "name": "equity",
+    "cash": 6291.456,
+    "positions": {
+        "SMCI": {
+            "quantity": 259.123291819225,
+            "entry_price": 23.155000686645508
+        },
+        "INTC": {
+            "quantity": 101.095198952774,
+            "entry_price": 47.47999954223633
+        },
+        "UPST": {
+            "quantity": 152.10932352326304,
+            "entry_price": 25.2450008392334
+        },
+        "LYFT": {
+            "quantity": 231.50136214031133,
+            "entry_price": 13.26990032196045
+        },
+        "HOOD": {
+            "quantity": 35.22431013681626,
+            "entry_price": 69.7699966430664
+        },
+        "TSLA": {
+            "quantity": 5.224073251268201,
+            "entry_price": 376.3500061035156
+        },
+        "SOFI": {
+            "quantity": 100.94691345117091,
+            "entry_price": 15.581100463867188
+        }
+    },
+    "initial_capital": 30000.0,
+    "last_updated": "2026-04-01T07:13:34.684419"
+}

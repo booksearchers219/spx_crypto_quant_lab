@@ -14,7 +14,7 @@ from research.backtest_engine import run_backtest
 from risk.risk_manager import RiskManager
 from config.settings import EQUITY_WATCHLIST, TIMEFRAMES, EQUITY_MARKET_OPEN, EQUITY_MARKET_CLOSE
 
-risk_manager = RiskManager(capital=30000)
+risk_manager = RiskManager(capital=30000, name="equity")
 
 
 def load_best_equity_tickers():

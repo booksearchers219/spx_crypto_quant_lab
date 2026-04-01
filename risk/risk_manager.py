@@ -4,7 +4,8 @@ from datetime import datetime
 
 
 class RiskManager:
-    def __init__(self, capital: float = 30000):
+    def __init__(self, capital: float = 30000, name: str = "default"):
+        self.name = name
         self.initial_capital = float(capital)
         self.cash = float(capital)
         self.positions = {}
@@ -16,18 +17,17 @@ class RiskManager:
         for ticker, pos in self.positions.items():
             if ticker in price_dict:
                 price = price_dict[ticker]
-                # Safe conversion
                 price = float(price.iloc[0]) if hasattr(price, 'iloc') else float(price)
                 value += float(pos['quantity']) * price
         return value
 
-    def open_position(self, ticker: str, price, fraction: float = 0.20):  # ← Changed to 20% max per trade
+    def open_position(self, ticker: str, price, fraction: float = 0.20):
         if ticker in self.positions:
             return False
 
         price = float(price.iloc[0]) if hasattr(price, 'iloc') else float(price)
         investment = self.cash * fraction
-        if investment < 100:  # Minimum trade size
+        if investment < 100:
             return False
 
         quantity = investment / price
@@ -72,18 +72,19 @@ class RiskManager:
 
     def save_state(self):
         state = {
+            "name": self.name,
             "cash": float(self.cash),
             "positions": self.positions,
             "initial_capital": float(self.initial_capital),
             "last_updated": datetime.now().isoformat()
         }
         os.makedirs("outputs", exist_ok=True)
-        with open("outputs/portfolio_state.json", "w") as f:
+        with open(f"outputs/portfolio_state_{self.name}.json", "w") as f:
             json.dump(state, f, indent=4)
 
     def load_state(self):
         try:
-            with open("outputs/portfolio_state.json", "r") as f:
+            with open(f"outputs/portfolio_state_{self.name}.json", "r") as f:
                 state = json.load(f)
                 self.cash = float(state.get("cash", self.initial_capital))
                 self.positions = state.get("positions", {})

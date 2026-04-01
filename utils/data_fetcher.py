@@ -11,9 +11,8 @@ def load_watchlist(file_path: str):
 
 
 def fetch_data(ticker: str, period: str = "730d", interval: str = "1h") -> pd.DataFrame:
-    """Fetch OHLCV data using yfinance with smart period handling"""
+    """Fetch OHLCV data using yfinance with better error handling"""
     try:
-        # yfinance has limits on intraday data
         if interval in ["1m", "2m", "5m", "15m"]:
             period = "60d"
         elif interval in ["30m", "1h"]:
@@ -30,7 +29,7 @@ def fetch_data(ticker: str, period: str = "730d", interval: str = "1h") -> pd.Da
             prepost=True
         )
 
-        if data.empty:
+        if data is None or data.empty:
             print(f"⚠️ No data returned for {ticker}")
             return pd.DataFrame()
 
@@ -43,7 +42,6 @@ def fetch_data(ticker: str, period: str = "730d", interval: str = "1h") -> pd.Da
     except Exception as e:
         print(f"❌ Error fetching {ticker}: {e}")
         return pd.DataFrame()
-
 
 def fetch_all_watchlist(watchlist_file: str, interval: str = "1h"):
     """Fetch data for all tickers in a watchlist"""
