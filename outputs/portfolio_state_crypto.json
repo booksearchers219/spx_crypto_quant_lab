@@ -1,6 +1,6 @@
 {
     "name": "crypto",
-    "cash": 9830.4,
+    "cash": 12283.160115560437,
     "positions": {
         "XRP-USD": {
             "quantity": 4452.513809816034,
@@ -24,5 +24,5 @@
         }
     },
     "initial_capital": 30000.0,
-    "last_updated": "2026-04-01T07:05:27.908256"
+    "last_updated": "2026-04-01T07:38:45.060812"
 }

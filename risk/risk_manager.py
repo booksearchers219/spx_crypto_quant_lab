@@ -21,7 +21,7 @@ class RiskManager:
                 value += float(pos['quantity']) * price
         return value
 
-    def open_position(self, ticker: str, price, fraction: float = 0.20):
+    def open_position(self, ticker: str, price, fraction: float = 0.12):
         if ticker in self.positions:
             return False
 
