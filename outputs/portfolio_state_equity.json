@@ -1,6 +1,6 @@
 {
     "name": "equity",
-    "cash": 6291.456,
+    "cash": 5536.48128,
     "positions": {
         "SMCI": {
             "quantity": 259.123291819225,
@@ -29,8 +29,12 @@
         "SOFI": {
             "quantity": 100.94691345117091,
             "entry_price": 15.581100463867188
+        },
+        "MU": {
+            "quantity": 2.0325616924340166,
+            "entry_price": 371.44000244140625
         }
     },
     "initial_capital": 30000.0,
-    "last_updated": "2026-04-01T07:13:34.684419"
+    "last_updated": "2026-04-01T08:40:53.913644"
 }

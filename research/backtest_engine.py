@@ -16,7 +16,7 @@ def run_backtest(data: pd.DataFrame, strategy: str = "ma_slow",
     df = data.copy()
     ticker_name = ticker or "Unknown"
 
-    # Simple and safe slow MA crossover
+    # Slow MA for longer holds
     short = params.get("short", 20)
     long = params.get("long", 50)
 
@@ -26,12 +26,12 @@ def run_backtest(data: pd.DataFrame, strategy: str = "ma_slow",
     # Drop NaNs safely
     df = df.dropna().copy()
 
-    # Basic signal - no complex filters that cause alignment errors
+    # Simple signal
     df['signal'] = 0
     df.loc[df['short_ma'] > df['long_ma'], 'signal'] = 1
     df.loc[df['short_ma'] < df['long_ma'], 'signal'] = -1
 
-    # Performance calculation
+    # Performance
     df['returns'] = df['Close'].pct_change()
     df['strategy_returns'] = df['signal'].shift(1) * df['returns']
     df['equity'] = initial_capital * (1 + df['strategy_returns']).cumprod()
@@ -56,7 +56,6 @@ def run_backtest(data: pd.DataFrame, strategy: str = "ma_slow",
     with open(f"{output_dir}/summary.json", "w") as f:
         json.dump(summary, f, indent=4)
 
-    # Chart
     plt.figure(figsize=(14, 8))
     plt.plot(df['equity'], label='Strategy Equity', linewidth=2)
     plt.title(f"Slow MA - {ticker_name} | Return: {summary['total_return_pct']:.2f}%")

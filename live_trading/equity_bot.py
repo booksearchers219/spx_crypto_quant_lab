@@ -18,7 +18,6 @@ risk_manager = RiskManager(capital=30000, name="equity")
 
 
 def load_best_equity_tickers():
-    """Smart loading: use recent research if available (less than 6 hours old)"""
     research_file = "outputs/latest_best.json"
 
     if os.path.exists(research_file):
@@ -30,8 +29,6 @@ def load_best_equity_tickers():
             if data.get("mode") == "equity" and file_age_hours < 6:
                 print(f"📋 Using recent equity research ({file_age_hours:.1f}h old)")
                 return data.get("top_tickers", [])
-            else:
-                print(f"📋 Research is {file_age_hours:.1f}h old → Running fresh research")
         except Exception as e:
             print(f"⚠️ Error reading research file: {e}")
 
@@ -45,7 +42,6 @@ def load_best_equity_tickers():
     except:
         print("⚠️ Failed to load research, falling back to watchlist")
         return load_watchlist(EQUITY_WATCHLIST)
-
 
 
 def is_market_open():
@@ -75,7 +71,7 @@ def run_equity_cycle():
         df, summary = run_backtest(
             data,
             strategy="ma_slow",
-            params={"short": 20, "long": 50},  # Slower = longer holds
+            params={"short": 20, "long": 50},
             ticker=ticker
         )
 
@@ -87,8 +83,23 @@ def run_equity_cycle():
             risk_manager.close_position(ticker, current_price)
 
     total_value = risk_manager.get_current_value(current_prices)
+    print(f"💰 Equity Portfolio Summary")
+    print(f"   Cash        : ${risk_manager.cash:,.2f}")
+    print(f"   Total Value : ${total_value:,.2f}")
+    print(f"   Positions   : {len(risk_manager.positions)}")
+
+    if risk_manager.positions:
+        print("   Open Positions:")
+        for ticker, pos in risk_manager.positions.items():
+            current_p = current_prices.get(ticker, pos['entry_price'])
+            current_p = float(current_p.iloc[0]) if hasattr(current_p, 'iloc') else float(current_p)
+            unrealized = (current_p - pos['entry_price']) * pos['quantity']
+            print(
+                f"     {ticker:8} | Qty: {pos['quantity']:>10.6f} | Entry: ${pos['entry_price']:.4f} | Current: ${current_p:.4f} | Unrealized: ${unrealized:,.2f}")
+
     print(
-        f"💰 Equity Portfolio → Cash: ${risk_manager.cash:,.2f} | Total: ${total_value:,.2f} | Positions: {len(risk_manager.positions)}")
+        f"   Combined P&L: ${total_value - risk_manager.initial_capital:,.2f} ({(total_value - risk_manager.initial_capital) / risk_manager.initial_capital * 100:+.2f}%)")
+    print("-" * 90)
 
 
 if __name__ == "__main__":
