@@ -14,18 +14,52 @@ from risk.risk_manager import RiskManager
 from config.settings import CRYPTO_WATCHLIST, TIMEFRAMES
 from utils.equity_logger import log_portfolio
 
+
+def robust_fetch_data(ticker, period="60d", interval="15m", max_retries=3):
+    """Robust fetch with retries for flaky yfinance."""
+    for attempt in range(max_retries):
+        try:
+            data = fetch_data(ticker, period=period, interval=interval)
+            if data is None or len(data) < 50:
+                if attempt < max_retries - 1:
+                    print(f"⚠️ Empty data for {ticker}, retrying ({attempt + 1}/{max_retries})...")
+                    time.sleep(3 + attempt * 2)
+                    continue
+                print(f"⚠️ No usable data for {ticker} after retries")
+                return None
+
+            print(f"✅ Fetched {len(data)} {interval} bars for {ticker} | Latest: {data.index[-1]}")
+            return data
+
+        except Exception as e:
+            if attempt < max_retries - 1:
+                print(f"⚠️ Fetch error {ticker} (attempt {attempt+1}) - retrying...")
+                time.sleep(3 + attempt * 2)
+            else:
+                print(f"❌ Failed fetching {ticker}: {e}")
+                return None
+
+
+def calculate_rsi(series: pd.Series, period: int = 14) -> pd.Series:
+    delta = series.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+
+# Global Risk Manager - initialized once
 risk_manager = RiskManager(capital=30000, name="crypto")
 
 
 def load_best_crypto_tickers():
     research_file = "outputs/latest_best.json"
-
     if os.path.exists(research_file):
         try:
             file_age_hours = (time.time() - os.path.getmtime(research_file)) / 3600
             with open(research_file, "r") as f:
                 data = json.load(f)
-
             if data.get("mode") == "crypto" and file_age_hours < 6:
                 print(f"📋 Using recent crypto research ({file_age_hours:.1f}h old)")
                 return data.get("top_tickers", [])
@@ -34,7 +68,6 @@ def load_best_crypto_tickers():
 
     print("🔬 Running fresh crypto research...")
     run_research(mode="crypto")
-
     try:
         with open(research_file, "r") as f:
             data = json.load(f)
@@ -45,59 +78,75 @@ def load_best_crypto_tickers():
 
 
 def run_crypto_cycle():
-    print(f"\n🚀 Crypto Bot Cycle - {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"\n🚀 Crypto Bot Cycle - {time.strftime('%Y-%m-%d %H:%M:%S')} (Calmer Mode v6 - Fixed)")
 
     active_tickers = load_best_crypto_tickers()
-    print(f"Using {len(active_tickers)} crypto tickers: {active_tickers[:10]}")
+    print(f"Using {len(active_tickers)} crypto tickers: {active_tickers}")
 
     current_prices = {}
-    for ticker in active_tickers[:10]:
-        data = fetch_data(ticker, period="60d", interval=TIMEFRAMES["crypto"])
-        if len(data) < 100:
+
+    for ticker in active_tickers[:12]:
+        try:
+            data = robust_fetch_data(ticker)
+            if data is None or len(data) < 150:
+                print(f"⚠️ Insufficient data for {ticker}, skipping")
+                continue
+
+            current_price = float(data['Close'].iloc[-1].item())
+            current_prices[ticker] = current_price
+
+            df, summary = run_backtest(
+                data, strategy="ma_fast", params={"short": 8, "long": 21}, ticker=ticker
+            )
+
+            # Weak ticker filter - skip risky coins
+            if isinstance(summary, dict):
+                max_dd = summary.get('max_drawdown', 0)
+                total_ret = summary.get('total_return', 0)
+                if max_dd < -22.0:
+                    print(f"   ⏭️ Skipping {ticker} - too weak (Max DD: {max_dd:.1f}%)")
+                    continue
+                if total_ret < -5:
+                    print(f"   ⏭️ Skipping {ticker} - poor return ({total_ret:.1f}%)")
+                    continue
+
+            signal = int(df['signal'].iloc[-1]) if 'signal' in df.columns else 0
+
+            df = df.copy()
+            df['ma200'] = df['Close'].rolling(window=200).mean()
+            df['rsi'] = calculate_rsi(df['Close'], period=14)
+
+            close_value = float(df['Close'].iloc[-1].item())
+            ma200_value = float(df['ma200'].iloc[-1].item()) if pd.notna(df['ma200'].iloc[-1]) else None
+            short_ma_value = float(df['short_ma'].iloc[-1].item()) if 'short_ma' in df.columns and pd.notna(df['short_ma'].iloc[-1]) else None
+            rsi_value = float(df['rsi'].iloc[-1]) if 'rsi' in df.columns and pd.notna(df['rsi'].iloc[-1]) else 50.0
+
+            long_bias = 1 if ma200_value is not None and close_value > ma200_value else 0
+
+            buy_condition = (
+                signal == 1 and
+                long_bias == 1 and
+                short_ma_value is not None and
+                close_value > short_ma_value * 1.003 and
+                rsi_value < 67
+            )
+
+            if buy_condition:
+                success = risk_manager.open_position(ticker, current_price, base_fraction=0.07, max_addons=2)
+                if success:
+                    print(f"   ✅ Calmer buy on {ticker} | Signal:{signal} Bias:{long_bias} RSI:{rsi_value:.1f}")
+
+            elif signal == -1 and ticker in risk_manager.positions:
+                risk_manager.close_position(ticker, current_price)
+
+        except Exception as e:
+            print(f"⚠️ Error processing {ticker}: {type(e).__name__} - {e}")
             continue
 
-        current_price = data['Close'].iloc[-1]
-        current_prices[ticker] = current_price
-
-        # === IMPROVED HYBRID SIGNAL ===
-        df, summary = run_backtest(
-            data,
-            strategy="ma_fast",
-            params={"short": 5, "long": 13},
-            ticker=ticker
-        )
-
-        signal = int(df['signal'].iloc[-1]) if 'signal' in df.columns else 0
-
-        # Safe MA calculations
-        df = df.copy()
-        df['ma200'] = df['Close'].rolling(window=200).mean()
-
-        # Extract scalars safely
-        close_value = float(df['Close'].iloc[-1].item())
-        ma200_value = float(df['ma200'].iloc[-1].item()) if pd.notna(df['ma200'].iloc[-1]) else None
-        short_ma_value = float(df['short_ma'].iloc[-1].item()) if 'short_ma' in df.columns and pd.notna(df['short_ma'].iloc[-1]) else None
-
-        long_bias = 1 if ma200_value is not None and close_value > ma200_value else 0
-
-        # More responsive buy condition
-        buy_condition = (signal == 1) or (
-            long_bias == 1 and short_ma_value is not None and close_value > short_ma_value * 0.995
-        )
-
-        if buy_condition:
-            success = risk_manager.open_position(ticker, current_price, base_fraction=0.18, max_addons=4)
-            if success:
-                ma200_str = f"${ma200_value:.4f}" if ma200_value is not None else "N/A"
-                print(f"   ✅ Hybrid buy trigger on {ticker} | Signal: {signal} | Bias: {long_bias} | "
-                      f"Price: ${close_value:.4f} | MA200: {ma200_str}")
-        elif signal == -1 and ticker in risk_manager.positions:
-            risk_manager.close_position(ticker, current_price)
-
+    # === Portfolio Summary (only once per cycle) ===
     total_value = risk_manager.get_current_value(current_prices)
 
-    # Detailed logging
-    print(f"💰 Crypto Portfolio Summary")
+    print(f"\n💰 Crypto Portfolio Summary (Calmer Mode v6)")
     print(f"   Cash        : ${risk_manager.cash:,.2f}")
     print(f"   Total Value : ${total_value:,.2f}")
     print(f"   Positions   : {len(risk_manager.positions)}")
@@ -105,21 +154,18 @@ def run_crypto_cycle():
     if risk_manager.positions:
         print("   Open Positions:")
         for ticker, pos in risk_manager.positions.items():
-            current_p = current_prices.get(ticker, pos['entry_price'])
-            current_p = float(current_p.iloc[0].item()) if hasattr(current_p, 'iloc') else float(current_p)
-            unrealized = (current_p - pos['entry_price']) * pos['quantity']
-            print(
-                f"     {ticker:8} | Qty: {pos['quantity']:>10.6f} | Entry: ${pos['entry_price']:.4f} | "
-                f"Current: ${current_p:.4f} | Unrealized: ${unrealized:,.2f}")
+            curr_p = current_prices.get(ticker, pos.get('entry_price', 0))
+            curr_p = float(curr_p.iloc[-1].item()) if hasattr(curr_p, 'iloc') else float(curr_p)
+            unrealized = (curr_p - pos['entry_price']) * pos['quantity']
+            print(f"     {ticker:8} | Qty: {pos['quantity']:>10.6f} | Entry: ${pos['entry_price']:.4f} | "
+                  f"Current: ${curr_p:.4f} | Unrealized: ${unrealized:,.2f}")
 
-    print(
-        f"   Combined P&L: ${total_value - risk_manager.initial_capital:,.2f} "
-        f"({(total_value - risk_manager.initial_capital) / risk_manager.initial_capital * 100:+.2f}%)")
+    pnl = total_value - risk_manager.initial_capital
+    print(f"   Combined P&L: ${pnl:,.2f} ({pnl / risk_manager.initial_capital * 100:+.2f}%)")
     print("-" * 90)
 
-    # Log for graphing
     log_portfolio(
-        bot_name="Crypto",
+        bot_name="Crypto_Calm_v6",
         cash=risk_manager.cash,
         total_value=total_value,
         positions_count=len(risk_manager.positions)

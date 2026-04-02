@@ -9,15 +9,21 @@ def main():
     parser.add_argument("--research_mode", choices=["equity", "crypto"],
                         default="equity", help="Which market to research")
     parser.add_argument("--reset", action="store_true", help="Reset both portfolios to $30,000")
+    parser.add_argument("--reset-crypto", action="store_true", help="Reset only crypto portfolio")
+    parser.add_argument("--reset-equity", action="store_true", help="Reset only equity portfolio")
 
     args = parser.parse_args()
 
-    if args.reset:
-        print("🔄 Resetting both portfolios to $30,000...")
+    if args.reset or args.reset_crypto or args.reset_equity:
+        print("🔄 Resetting portfolios...")
         from risk.risk_manager import RiskManager
-        RiskManager(capital=30000, name="crypto").reset()
-        RiskManager(capital=30000, name="equity").reset()
-        print("✅ Both bots have been reset to $30,000 each!")
+
+        if args.reset or args.reset_crypto:
+            RiskManager(capital=30000, name="crypto").reset()
+        if args.reset or args.reset_equity:
+            RiskManager(capital=30000, name="equity").reset()
+
+        print("✅ Reset complete!")
         return
 
     if args.mode == "research":
@@ -53,7 +59,7 @@ def main():
             p1.join()
             p2.join()
         except KeyboardInterrupt:
-            print("\nStopping bots...")
+            print("\n🛑 Stopping bots...")
 
 
 if __name__ == "__main__":
