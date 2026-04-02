@@ -13,11 +13,13 @@ from research.research_runner import run_research
 from research.backtest_engine import run_backtest
 from risk.risk_manager import RiskManager
 from config.settings import EQUITY_WATCHLIST, TIMEFRAMES, EQUITY_MARKET_OPEN, EQUITY_MARKET_CLOSE
+from utils.equity_logger import log_portfolio  # Make sure this file exists
 
 risk_manager = RiskManager(capital=30000, name="equity")
 
 
 def load_best_equity_tickers():
+    """Smart loading: use recent research if it's less than 6 hours old"""
     research_file = "outputs/latest_best.json"
 
     if os.path.exists(research_file):
@@ -84,17 +86,7 @@ def run_equity_cycle():
 
     total_value = risk_manager.get_current_value(current_prices)
 
-    from utils.equity_logger import log_portfolio
-
-    # Log for graphing
-    log_portfolio(
-        bot_name="Crypto" if "crypto" in __file__ else "Equity",
-        cash=risk_manager.cash,
-        total_value=total_value,
-        positions_count=len(risk_manager.positions),
-        unrealized_pnl=total_value - risk_manager.initial_capital
-    )
-
+    # Detailed logging
     print(f"💰 Equity Portfolio Summary")
     print(f"   Cash        : ${risk_manager.cash:,.2f}")
     print(f"   Total Value : ${total_value:,.2f}")
@@ -112,6 +104,14 @@ def run_equity_cycle():
     print(
         f"   Combined P&L: ${total_value - risk_manager.initial_capital:,.2f} ({(total_value - risk_manager.initial_capital) / risk_manager.initial_capital * 100:+.2f}%)")
     print("-" * 90)
+
+    # Log for graphing
+    log_portfolio(
+        bot_name="Equity",
+        cash=risk_manager.cash,
+        total_value=total_value,
+        positions_count=len(risk_manager.positions)
+    )
 
 
 if __name__ == "__main__":

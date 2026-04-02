@@ -16,7 +16,7 @@ def run_backtest(data: pd.DataFrame, strategy: str = "ma_slow",
     df = data.copy()
     ticker_name = ticker or "Unknown"
 
-    # Slow MA for longer holds
+    # Safe slow MA crossover for longer holds
     short = params.get("short", 20)
     long = params.get("long", 50)
 
