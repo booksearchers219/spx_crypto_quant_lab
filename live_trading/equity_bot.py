@@ -26,13 +26,12 @@ def setup_logging(bot_name: str):
     today = datetime.now().strftime("%Y%m%d")
     log_filename = f"logs/{bot_name.lower()}_{today}.log"
 
-    # Configure logging - outputs to both console and file
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s | %(levelname)s | %(message)s',
         handlers=[
             logging.FileHandler(log_filename, mode='a', encoding='utf-8'),
-            logging.StreamHandler()  # Keeps your console output
+            logging.StreamHandler()
         ],
         force=True
     )
@@ -42,11 +41,10 @@ def setup_logging(bot_name: str):
     return logger
 
 
-# ================== AGGRESSIVENESS TUNING (Equity) ==================
-BASE_FRACTION = 0.13
-
-
-# ===================================================================
+# ================== AGGRESSIVENESS TUNING (MORE AGGRESSIVE) ==================
+BASE_FRACTION = 0.22      # ↑ Larger position sizes (22% of cash per trade)
+WEAK_DD_THRESHOLD = -35   # ↓ Accepts riskier stocks with bigger drawdowns
+# ===========================================================================
 
 
 def load_best_equity_tickers():
@@ -88,7 +86,7 @@ def run_equity_cycle(reset=False):
         print(f"🌙 Market closed - Equity bot sleeping... ({time.strftime('%H:%M')})")
         return
 
-    logger.info(f"📈 Equity Bot Cycle - {time.strftime('%Y-%m-%d %H:%M:%S')} (Aggressive Mode)")
+    logger.info(f"📈 Equity Bot Cycle - {time.strftime('%Y-%m-%d %H:%M:%S')} (Aggressive Mode - 22% sizing)")
 
     # Create RiskManager - loads saved state by default
     risk_manager = RiskManager(capital=30000, name="equity")
@@ -142,7 +140,7 @@ def run_equity_cycle(reset=False):
 
     total_value = risk_manager.get_current_value(current_prices)
 
-    print(f"💰 Equity Portfolio Summary")
+    print(f"💰 Equity Portfolio Summary (Aggressive Mode)")
     print(f"   Cash        : ${risk_manager.cash:,.2f}")
     print(f"   Total Value : ${total_value:,.2f}")
     print(f"   Positions   : {len(risk_manager.positions)}")
@@ -179,10 +177,9 @@ if __name__ == "__main__":
     parser.add_argument('--reset', action='store_true', help='Reset portfolio to $30,000 and clear all positions')
     args = parser.parse_args()
 
-    # Setup logging (console + file)
     logger = setup_logging("Equity")
 
-    print("📈 Starting Equity Bot (Aggressive Mode)...")
+    print("📈 Starting Equity Bot (Aggressive Mode - 22% sizing)...")
     if args.reset:
         print("🔄 RESET flag detected — starting with fresh $30,000")
         logger.info("🔄 RESET flag detected — starting with fresh $30,000")
