@@ -5,6 +5,7 @@ import os
 import pandas as pd
 import matplotlib
 import argparse
+import logging
 from datetime import datetime
 import pytz
 
@@ -18,8 +19,33 @@ from config.settings import EQUITY_WATCHLIST, TIMEFRAMES, EQUITY_MARKET_OPEN, EQ
 from utils.equity_logger import log_portfolio
 
 
+# ====================== LOGGING SETUP ======================
+def setup_logging(bot_name: str):
+    os.makedirs("logs", exist_ok=True)
+
+    today = datetime.now().strftime("%Y%m%d")
+    log_filename = f"logs/{bot_name.lower()}_{today}.log"
+
+    # Configure logging - outputs to both console and file
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s | %(levelname)s | %(message)s',
+        handlers=[
+            logging.FileHandler(log_filename, mode='a', encoding='utf-8'),
+            logging.StreamHandler()  # Keeps your console output
+        ],
+        force=True
+    )
+
+    logger = logging.getLogger(bot_name)
+    logger.info(f"🚀 Logging initialized for {bot_name}")
+    return logger
+
+
 # ================== AGGRESSIVENESS TUNING (Equity) ==================
 BASE_FRACTION = 0.13
+
+
 # ===================================================================
 
 
@@ -55,11 +81,14 @@ def is_market_open():
 
 
 def run_equity_cycle(reset=False):
+    logger = logging.getLogger("Equity")
+
     if not is_market_open():
+        logger.info("🌙 Market closed - Equity bot sleeping...")
         print(f"🌙 Market closed - Equity bot sleeping... ({time.strftime('%H:%M')})")
         return
 
-    print(f"\n📈 Equity Bot Cycle - {time.strftime('%Y-%m-%d %H:%M:%S')} (Aggressive Mode)")
+    logger.info(f"📈 Equity Bot Cycle - {time.strftime('%Y-%m-%d %H:%M:%S')} (Aggressive Mode)")
 
     # Create RiskManager - loads saved state by default
     risk_manager = RiskManager(capital=30000, name="equity")
@@ -67,7 +96,7 @@ def run_equity_cycle(reset=False):
         risk_manager.reset()
 
     active_tickers = load_best_equity_tickers()
-    print(f"Using {len(active_tickers)} equity tickers: {active_tickers[:8]}")
+    logger.info(f"Using {len(active_tickers)} equity tickers: {active_tickers[:8]}")
 
     current_prices = {}
 
@@ -139,7 +168,9 @@ def run_equity_cycle(reset=False):
         positions_count=len(risk_manager.positions)
     )
 
-    # Save state at the end of every cycle
+    # Log summary to file and save state
+    logger.info(
+        f"Portfolio Summary | Cash: ${risk_manager.cash:,.2f} | Total Value: ${total_value:,.2f} | P&L: ${pnl:,.2f} | Positions: {len(risk_manager.positions)}")
     risk_manager.save_state()
 
 
@@ -148,9 +179,13 @@ if __name__ == "__main__":
     parser.add_argument('--reset', action='store_true', help='Reset portfolio to $30,000 and clear all positions')
     args = parser.parse_args()
 
+    # Setup logging (console + file)
+    logger = setup_logging("Equity")
+
     print("📈 Starting Equity Bot (Aggressive Mode)...")
     if args.reset:
         print("🔄 RESET flag detected — starting with fresh $30,000")
+        logger.info("🔄 RESET flag detected — starting with fresh $30,000")
 
     schedule.every(6).hours.do(lambda: run_research(mode="equity"))
 

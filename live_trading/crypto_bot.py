@@ -5,6 +5,8 @@ import os
 import pandas as pd
 import matplotlib
 import argparse
+import logging
+from datetime import datetime
 
 matplotlib.use('Agg')
 
@@ -14,6 +16,29 @@ from research.backtest_engine import run_backtest
 from risk.risk_manager import RiskManager
 from config.settings import CRYPTO_WATCHLIST, TIMEFRAMES
 from utils.equity_logger import log_portfolio
+
+
+# ====================== LOGGING SETUP ======================
+def setup_logging(bot_name: str):
+    os.makedirs("logs", exist_ok=True)
+
+    today = datetime.now().strftime("%Y%m%d")
+    log_filename = f"logs/{bot_name.lower()}_{today}.log"
+
+    # Configure logging - outputs to both console and file
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s | %(levelname)s | %(message)s',
+        handlers=[
+            logging.FileHandler(log_filename, mode='a', encoding='utf-8'),
+            logging.StreamHandler()  # Keeps your console output
+        ],
+        force=True  # Reset any previous config
+    )
+
+    logger = logging.getLogger(bot_name)
+    logger.info(f"🚀 Logging initialized for {bot_name}")
+    return logger
 
 
 def robust_fetch_data(ticker, period="60d", interval="15m", max_retries=3):
@@ -33,7 +58,7 @@ def robust_fetch_data(ticker, period="60d", interval="15m", max_retries=3):
 
         except Exception as e:
             if attempt < max_retries - 1:
-                print(f"⚠️ Fetch error {ticker} (attempt {attempt+1}) - retrying...")
+                print(f"⚠️ Fetch error {ticker} (attempt {attempt + 1}) - retrying...")
                 time.sleep(3 + attempt * 2)
             else:
                 print(f"❌ Failed fetching {ticker}: {e}")
@@ -55,6 +80,8 @@ BUY_BUFFER = 1.000
 RSI_MAX = 73
 TRAIL_PERCENT = 0.09
 WEAK_DD_THRESHOLD = -27
+
+
 # ===========================================================
 
 
@@ -83,15 +110,17 @@ def load_best_crypto_tickers():
 
 
 def run_crypto_cycle(reset=False):
-    print(f"\n🚀 Crypto Bot Cycle - {time.strftime('%Y-%m-%d %H:%M:%S')} (Aggressive Mode - 13% sizing + 9% trail)")
+    logger = logging.getLogger("Crypto")
 
-    # Create RiskManager - loads saved state by default, or resets if flag is set
+    logger.info(f"🚀 Crypto Bot Cycle - {time.strftime('%Y-%m-%d %H:%M:%S')} (Aggressive Mode - 13% sizing + 9% trail)")
+
+    # Create RiskManager - loads saved state by default
     risk_manager = RiskManager(capital=30000, name="crypto")
     if reset:
         risk_manager.reset()
 
     active_tickers = load_best_crypto_tickers()
-    print(f"Using {len(active_tickers)} crypto tickers: {active_tickers}")
+    logger.info(f"Using {len(active_tickers)} crypto tickers: {active_tickers}")
 
     current_prices = {}
 
@@ -123,17 +152,18 @@ def run_crypto_cycle(reset=False):
 
             close_value = float(df['Close'].iloc[-1].item())
             ma200_value = float(df['ma200'].iloc[-1].item()) if pd.notna(df['ma200'].iloc[-1]) else None
-            short_ma_value = float(df['short_ma'].iloc[-1].item()) if 'short_ma' in df.columns and pd.notna(df['short_ma'].iloc[-1]) else None
+            short_ma_value = float(df['short_ma'].iloc[-1].item()) if 'short_ma' in df.columns and pd.notna(
+                df['short_ma'].iloc[-1]) else None
             rsi_value = float(df['rsi'].iloc[-1]) if 'rsi' in df.columns and pd.notna(df['rsi'].iloc[-1]) else 50.0
 
             long_bias = 1 if ma200_value is not None and close_value > ma200_value else 0
 
             buy_condition = (
-                signal == 1 and
-                long_bias == 1 and
-                short_ma_value is not None and
-                close_value > short_ma_value * BUY_BUFFER and
-                rsi_value < RSI_MAX
+                    signal == 1 and
+                    long_bias == 1 and
+                    short_ma_value is not None and
+                    close_value > short_ma_value * BUY_BUFFER and
+                    rsi_value < RSI_MAX
             )
 
             # Trailing stop check
@@ -183,7 +213,9 @@ def run_crypto_cycle(reset=False):
         positions_count=len(risk_manager.positions)
     )
 
-    # Save state at the end of every cycle
+    # Log summary to file and save state
+    logger.info(
+        f"Portfolio Summary | Cash: ${risk_manager.cash:,.2f} | Total Value: ${total_value:,.2f} | P&L: ${pnl:,.2f} | Positions: {len(risk_manager.positions)}")
     risk_manager.save_state()
 
 
@@ -192,14 +224,18 @@ if __name__ == "__main__":
     parser.add_argument('--reset', action='store_true', help='Reset portfolio to $30,000 and clear all positions')
     args = parser.parse_args()
 
-    print("🚀 Starting Crypto Bot (Aggressive Mode - tuned for more trades)...")
+    # Setup logging (console + file)
+    logger = setup_logging("Crypto")
+
+    print("🚀 Starting Crypto Bot (Aggressive Mode - tuned for more trades...)")
     if args.reset:
         print("🔄 RESET flag detected — starting with fresh $30,000")
+        logger.info("🔄 RESET flag detected — starting with fresh $30,000")
 
     schedule.every(6).hours.do(lambda: run_research(mode="crypto"))
 
     run_crypto_cycle(reset=args.reset)
-    schedule.every(15).minutes.do(lambda: run_crypto_cycle(reset=False))  # normal scheduled runs never reset
+    schedule.every(15).minutes.do(lambda: run_crypto_cycle(reset=False))
 
     while True:
         schedule.run_pending()
