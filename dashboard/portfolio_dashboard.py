@@ -1,72 +1,65 @@
 import pandas as pd
 import os
-import json
 from datetime import datetime
 
-
 def show_dashboard():
-    print("\n" + "=" * 120)
-    print(" " * 40 + "COMBINED VIRTUAL TRADING DASHBOARD")
+    print("=" * 120)
+    print("                  COMBINED VIRTUAL TRADING DASHBOARD")
     print("=" * 120)
     print(f"Generated : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
-    log_file = "outputs/equity_log.csv"
-    total_initial = 60000.0
-    total_value = 0.0
-    total_pnl = 0.0
+    log_file = "logs/portfolio_log.csv"   # adjust if your logger uses a different name/path
 
-    if os.path.exists(log_file):
+    if not os.path.exists(log_file):
+        print("⚠️ Log file not found yet.")
+        print(f"   Expected: {os.path.abspath(log_file)}")
+        print("   → Run the bots for a few cycles so logging starts.")
+        print("   → Make sure `log_portfolio()` is being called successfully.")
+        print("\nDashboard will refresh every 10 minutes.")
+        return
+
+    try:
         df = pd.read_csv(log_file)
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
 
-        # Get latest entry for each bot
-        latest = df.groupby('bot').last().reset_index()
+        # Ensure timestamp column exists and is datetime
+        if 'timestamp' in df.columns:
+            df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+        else:
+            # fallback if no timestamp column
+            df['timestamp'] = pd.to_datetime('now')
+
+        # Get the most recent record for each bot
+        latest = df.loc[df.groupby('bot_name')['timestamp'].idxmax()]
 
         for _, row in latest.iterrows():
-            bot_name = row['bot']
-            value = row['total_value']
-            pnl = row['total_pnl']
+            bot_name = str(row.get('bot_name', 'Unknown')).upper()
 
-            if bot_name == "Crypto":
-                print(f"💰 CRYPTO BOT")
+            if 'CRYPTO' in bot_name or 'CALM' in bot_name:
+                print("💰 CRYPTO BOT")
             else:
-                print(f"📈 EQUITY BOT")
+                print("📈 EQUITY BOT")
 
-            print(f"   Initial     : $30,000.00")
-            print(f"   Cash        : ${row['cash']:,.2f}")
-            print(f"   Value       : ${value:,.2f} | P&L: ${pnl:,.2f} ({pnl / 30000 * 100:+.2f}%)")
-            print(f"   Positions   : {int(row['positions'])}")
-            print(f"   Last Updated: {row['timestamp']}")
+            initial = row.get('initial_capital', 30000)
+            cash = row.get('cash', 0)
+            total_value = row.get('total_value', 0)
+            positions = int(row.get('positions_count', 0))
+            last_updated = row.get('timestamp', 'N/A')
 
-            total_value += value
-            total_pnl += pnl
+            pnl = total_value - initial
+            pnl_pct = (pnl / initial * 100) if initial > 0 else 0
 
-    else:
-        print("⚠️ No equity_log.csv found yet. Run the bots for a while.")
+            print(f"   Initial : ${initial:,.2f}")
+            print(f"   Cash    : ${cash:,.2f}")
+            print(f"   Value   : ${total_value:,.2f} | P&L: ${pnl:,.2f} ({pnl_pct:+.2f}%)")
+            print(f"   Positions : {positions}")
+            print(f"   Last Updated: {last_updated}")
+            print("-" * 80)
 
-    # If one bot is missing, show placeholder
-    if total_value == 0:
-        print("💰 CRYPTO BOT → No data yet")
-        print("📈 EQUITY BOT → No data yet")
+    except Exception as e:
+        print(f"⚠️ Error reading dashboard data: {e}")
+        print("   Check that the log file has the expected columns (bot_name, cash, total_value, positions_count, timestamp).")
 
-    print("=" * 120)
-    print(f"💎 COMBINED TOTAL")
-    print(f"   Initial : $60,000.00")
-    print(f"   Current : ${total_value:,.2f}")
-    print(f"   P&L     : ${total_pnl:,.2f} ({total_pnl / total_initial * 100:+.2f}%)")
-    print("=" * 120)
-
-    # Research Status
-    try:
-        with open("outputs/latest_best.json") as f:
-            best = json.load(f)
-            print(f"\n🔬 Latest Research : {best.get('timestamp', 'Unknown')} | Mode: {best.get('mode', 'Unknown')}")
-            print("Top Tickers:", ", ".join(best.get('top_tickers', [])[:8]))
-    except:
-        print("\n⚠️ No research file found")
-
-    print("\nRefresh with: python -m main --mode dashboard")
-    print("=" * 120)
+    print("\nDashboard refreshed every 10 minutes.")
 
 
 if __name__ == "__main__":

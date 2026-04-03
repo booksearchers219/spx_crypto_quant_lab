@@ -16,7 +16,6 @@ from utils.equity_logger import log_portfolio
 
 
 def robust_fetch_data(ticker, period="60d", interval="15m", max_retries=3):
-    """Robust fetch with retries for flaky yfinance crypto tickers."""
     for attempt in range(max_retries):
         try:
             data = fetch_data(ticker, period=period, interval=interval)
@@ -41,7 +40,6 @@ def robust_fetch_data(ticker, period="60d", interval="15m", max_retries=3):
 
 
 def calculate_rsi(series: pd.Series, period: int = 14) -> pd.Series:
-    """Simple RSI calculation without external libraries."""
     delta = series.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
@@ -50,8 +48,16 @@ def calculate_rsi(series: pd.Series, period: int = 14) -> pd.Series:
     return rsi
 
 
-# Global Risk Manager
+# ================== AGGRESSIVENESS TUNING ==================
 risk_manager = RiskManager(capital=30000, name="crypto")
+
+# Change these numbers to tune aggression:
+BASE_FRACTION = 0.13      # was 0.07 → bigger positions
+BUY_BUFFER = 1.000        # was 1.003 → easier entry
+RSI_MAX = 73              # was 67 → allows hotter entries
+TRAIL_PERCENT = 0.09      # was 0.07 → 9% trailing stop
+WEAK_DD_THRESHOLD = -27   # was -22 → allows slightly riskier coins
+# ===========================================================
 
 
 def load_best_crypto_tickers():
@@ -79,7 +85,7 @@ def load_best_crypto_tickers():
 
 
 def run_crypto_cycle():
-    print(f"\n🚀 Crypto Bot Cycle - {time.strftime('%Y-%m-%d %H:%M:%S')} (Calmer Mode v7 + Trailing Stop 7%)")
+    print(f"\n🚀 Crypto Bot Cycle - {time.strftime('%Y-%m-%d %H:%M:%S')} (Aggressive Mode - 13% sizing + 9% trail)")
 
     active_tickers = load_best_crypto_tickers()
     print(f"Using {len(active_tickers)} crypto tickers: {active_tickers}")
@@ -96,21 +102,19 @@ def run_crypto_cycle():
             current_price = float(data['Close'].iloc[-1].item())
             current_prices[ticker] = current_price
 
-            # Run backtest for signal
             df, summary = run_backtest(
                 data, strategy="ma_fast", params={"short": 8, "long": 21}, ticker=ticker
             )
 
-            # Weak ticker filter
+            # Weak ticker filter (slightly loosened)
             if isinstance(summary, dict):
                 max_dd = summary.get('max_drawdown', 0)
-                if max_dd < -22.0:
+                if max_dd < WEAK_DD_THRESHOLD:
                     print(f"   ⏭️ Skipping {ticker} - too weak (Max DD: {max_dd:.1f}%)")
                     continue
 
             signal = int(df['signal'].iloc[-1]) if 'signal' in df.columns else 0
 
-            # Technical calculations
             df = df.copy()
             df['ma200'] = df['Close'].rolling(window=200).mean()
             df['rsi'] = calculate_rsi(df['Close'], period=14)
@@ -122,26 +126,25 @@ def run_crypto_cycle():
 
             long_bias = 1 if ma200_value is not None and close_value > ma200_value else 0
 
-            # Calmer buy condition
             buy_condition = (
                 signal == 1 and
                 long_bias == 1 and
                 short_ma_value is not None and
-                close_value > short_ma_value * 1.003 and
-                rsi_value < 67
+                close_value > short_ma_value * BUY_BUFFER and
+                rsi_value < RSI_MAX
             )
 
-            # === TRAILING STOP CHECK (most important new feature) ===
+            # Trailing stop check
             if ticker in risk_manager.positions:
                 risk_manager.check_trailing_stop(ticker, current_price)
 
-            # Buy new position
+            # Buy
             if buy_condition and ticker not in risk_manager.positions:
-                success = risk_manager.open_position(ticker, current_price, base_fraction=0.07, max_addons=2)
+                success = risk_manager.open_position(ticker, current_price, base_fraction=BASE_FRACTION, max_addons=2)
                 if success:
-                    print(f"   ✅ Calmer buy on {ticker} | Signal:{signal} Bias:{long_bias} RSI:{rsi_value:.1f}")
+                    print(f"   ✅ BUY on {ticker} | Signal:{signal} Bias:{long_bias} RSI:{rsi_value:.1f}")
 
-            # Backup sell on MA signal
+            # Sell on signal
             elif signal == -1 and ticker in risk_manager.positions:
                 risk_manager.close_position(ticker, current_price, reason="ma_signal")
 
@@ -149,10 +152,10 @@ def run_crypto_cycle():
             print(f"⚠️ Error processing {ticker}: {type(e).__name__} - {e}")
             continue
 
-    # === Portfolio Summary ===
+    # Portfolio Summary
     total_value = risk_manager.get_current_value(current_prices)
 
-    print(f"\n💰 Crypto Portfolio Summary (Calmer + 7% Trailing Stop)")
+    print(f"\n💰 Crypto Portfolio Summary (Aggressive Mode)")
     print(f"   Cash        : ${risk_manager.cash:,.2f}")
     print(f"   Total Value : ${total_value:,.2f}")
     print(f"   Positions   : {len(risk_manager.positions)}")
@@ -172,7 +175,7 @@ def run_crypto_cycle():
     print("-" * 90)
 
     log_portfolio(
-        bot_name="Crypto_Calm_v7_Trailing",
+        bot_name="Crypto_Aggressive_v1",
         cash=risk_manager.cash,
         total_value=total_value,
         positions_count=len(risk_manager.positions)
@@ -180,7 +183,7 @@ def run_crypto_cycle():
 
 
 if __name__ == "__main__":
-    print("🚀 Starting Crypto Bot (Crypto-only tickers with smart research + Trailing Stop)...")
+    print("🚀 Starting Crypto Bot (Aggressive Mode - tuned for more trades)...")
     schedule.every(6).hours.do(lambda: run_research(mode="crypto"))
 
     run_crypto_cycle()
