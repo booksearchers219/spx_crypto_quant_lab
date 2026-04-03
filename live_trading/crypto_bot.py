@@ -4,6 +4,7 @@ import json
 import os
 import pandas as pd
 import matplotlib
+import argparse
 
 matplotlib.use('Agg')
 
@@ -49,14 +50,11 @@ def calculate_rsi(series: pd.Series, period: int = 14) -> pd.Series:
 
 
 # ================== AGGRESSIVENESS TUNING ==================
-risk_manager = RiskManager(capital=30000, name="crypto")
-
-# Change these numbers to tune aggression:
-BASE_FRACTION = 0.13      # was 0.07 → bigger positions
-BUY_BUFFER = 1.000        # was 1.003 → easier entry
-RSI_MAX = 73              # was 67 → allows hotter entries
-TRAIL_PERCENT = 0.09      # was 0.07 → 9% trailing stop
-WEAK_DD_THRESHOLD = -27   # was -22 → allows slightly riskier coins
+BASE_FRACTION = 0.13
+BUY_BUFFER = 1.000
+RSI_MAX = 73
+TRAIL_PERCENT = 0.09
+WEAK_DD_THRESHOLD = -27
 # ===========================================================
 
 
@@ -84,8 +82,13 @@ def load_best_crypto_tickers():
         return load_watchlist(CRYPTO_WATCHLIST)
 
 
-def run_crypto_cycle():
+def run_crypto_cycle(reset=False):
     print(f"\n🚀 Crypto Bot Cycle - {time.strftime('%Y-%m-%d %H:%M:%S')} (Aggressive Mode - 13% sizing + 9% trail)")
+
+    # Create RiskManager - loads saved state by default, or resets if flag is set
+    risk_manager = RiskManager(capital=30000, name="crypto")
+    if reset:
+        risk_manager.reset()
 
     active_tickers = load_best_crypto_tickers()
     print(f"Using {len(active_tickers)} crypto tickers: {active_tickers}")
@@ -106,7 +109,6 @@ def run_crypto_cycle():
                 data, strategy="ma_fast", params={"short": 8, "long": 21}, ticker=ticker
             )
 
-            # Weak ticker filter (slightly loosened)
             if isinstance(summary, dict):
                 max_dd = summary.get('max_drawdown', 0)
                 if max_dd < WEAK_DD_THRESHOLD:
@@ -181,13 +183,23 @@ def run_crypto_cycle():
         positions_count=len(risk_manager.positions)
     )
 
+    # Save state at the end of every cycle
+    risk_manager.save_state()
+
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--reset', action='store_true', help='Reset portfolio to $30,000 and clear all positions')
+    args = parser.parse_args()
+
     print("🚀 Starting Crypto Bot (Aggressive Mode - tuned for more trades)...")
+    if args.reset:
+        print("🔄 RESET flag detected — starting with fresh $30,000")
+
     schedule.every(6).hours.do(lambda: run_research(mode="crypto"))
 
-    run_crypto_cycle()
-    schedule.every(15).minutes.do(run_crypto_cycle)
+    run_crypto_cycle(reset=args.reset)
+    schedule.every(15).minutes.do(lambda: run_crypto_cycle(reset=False))  # normal scheduled runs never reset
 
     while True:
         schedule.run_pending()

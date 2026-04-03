@@ -1,7 +1,13 @@
 {
     "name": "crypto",
-    "cash": 30000.0,
-    "positions": {},
+    "cash": 26100.0,
+    "positions": {
+        "ETC-USD": {
+            "entry_price": 8.09878921508789,
+            "quantity": 481.5534639096884,
+            "peak_price": 8.09878921508789
+        }
+    },
     "initial_capital": 30000.0,
-    "last_updated": "2026-04-02T16:12:49.772389"
+    "last_updated": "2026-04-03T11:14:44.766474"
 }

@@ -4,10 +4,11 @@ import json
 import os
 import pandas as pd
 import matplotlib
-
-matplotlib.use('Agg')
+import argparse
 from datetime import datetime
 import pytz
+
+matplotlib.use('Agg')
 
 from utils.data_fetcher import fetch_data, load_watchlist
 from research.research_runner import run_research
@@ -18,15 +19,12 @@ from utils.equity_logger import log_portfolio
 
 
 # ================== AGGRESSIVENESS TUNING (Equity) ==================
-risk_manager = RiskManager(capital=30000, name="equity")
-
-BASE_FRACTION = 0.13      # Same as crypto for consistency
+BASE_FRACTION = 0.13
 # ===================================================================
 
 
 def load_best_equity_tickers():
     research_file = "outputs/latest_best.json"
-
     if os.path.exists(research_file):
         try:
             file_age_hours = (time.time() - os.path.getmtime(research_file)) / 3600
@@ -56,12 +54,17 @@ def is_market_open():
     return EQUITY_MARKET_OPEN <= now.time() <= EQUITY_MARKET_CLOSE and now.weekday() < 5
 
 
-def run_equity_cycle():
+def run_equity_cycle(reset=False):
     if not is_market_open():
         print(f"🌙 Market closed - Equity bot sleeping... ({time.strftime('%H:%M')})")
         return
 
     print(f"\n📈 Equity Bot Cycle - {time.strftime('%Y-%m-%d %H:%M:%S')} (Aggressive Mode)")
+
+    # Create RiskManager - loads saved state by default
+    risk_manager = RiskManager(capital=30000, name="equity")
+    if reset:
+        risk_manager.reset()
 
     active_tickers = load_best_equity_tickers()
     print(f"Using {len(active_tickers)} equity tickers: {active_tickers[:8]}")
@@ -86,7 +89,7 @@ def run_equity_cycle():
 
             signal = int(df['signal'].iloc[-1]) if 'signal' in df.columns else 0
 
-            # === Trailing stop check (if we have the method) ===
+            # Trailing stop check
             if ticker in risk_manager.positions and hasattr(risk_manager, 'check_trailing_stop'):
                 risk_manager.check_trailing_stop(ticker, current_price)
 
@@ -136,13 +139,23 @@ def run_equity_cycle():
         positions_count=len(risk_manager.positions)
     )
 
+    # Save state at the end of every cycle
+    risk_manager.save_state()
+
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--reset', action='store_true', help='Reset portfolio to $30,000 and clear all positions')
+    args = parser.parse_args()
+
     print("📈 Starting Equity Bot (Aggressive Mode)...")
+    if args.reset:
+        print("🔄 RESET flag detected — starting with fresh $30,000")
+
     schedule.every(6).hours.do(lambda: run_research(mode="equity"))
 
-    run_equity_cycle()
-    schedule.every(30).minutes.do(run_equity_cycle)
+    run_equity_cycle(reset=args.reset)
+    schedule.every(30).minutes.do(lambda: run_equity_cycle(reset=False))
 
     while True:
         schedule.run_pending()
