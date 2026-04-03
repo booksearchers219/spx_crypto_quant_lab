@@ -88,10 +88,20 @@ def run_equity_cycle(reset=False):
 
     logger.info(f"📈 Equity Bot Cycle - {time.strftime('%Y-%m-%d %H:%M:%S')} (Aggressive Mode - 22% sizing)")
 
-    # Create RiskManager - loads saved state by default
+    # === FIXED: Explicit state handling ===
     risk_manager = RiskManager(capital=30000, name="equity")
+
     if reset:
         risk_manager.reset()
+    else:
+        loaded = risk_manager.load_state()
+        if loaded:
+            logger.info(f"✅ State loaded successfully - Cash: ${risk_manager.cash:,.2f}")
+        else:
+            logger.info("ℹ️ No saved state found - starting fresh with $30,000")
+
+    # Debug current state
+    print(f"DEBUG → Cash: ${risk_manager.cash:,.2f} | Open Positions: {len(risk_manager.positions)}")
 
     active_tickers = load_best_equity_tickers()
     logger.info(f"Using {len(active_tickers)} equity tickers: {active_tickers[:8]}")
@@ -108,27 +118,22 @@ def run_equity_cycle(reset=False):
             current_prices[ticker] = current_price
 
             df, summary = run_backtest(
-                data,
-                strategy="ma_slow",
-                params={"short": 20, "long": 50},
-                ticker=ticker
+                data, strategy="ma_slow", params={"short": 20, "long": 50}, ticker=ticker
             )
 
             signal = int(df['signal'].iloc[-1]) if 'signal' in df.columns else 0
 
-            # Trailing stop check
             if ticker in risk_manager.positions and hasattr(risk_manager, 'check_trailing_stop'):
                 risk_manager.check_trailing_stop(ticker, current_price)
 
             # Buy
             if signal == 1 and ticker not in risk_manager.positions:
                 success = risk_manager.open_position(
-                    ticker,
-                    current_price,
-                    base_fraction=BASE_FRACTION
+                    ticker, current_price, base_fraction=BASE_FRACTION
                 )
                 if success:
                     print(f"   ✅ BUY on {ticker} | Signal: {signal}")
+                    print(f"   DEBUG Cash after buy: ${risk_manager.cash:,.2f}")
 
             # Sell
             elif signal == -1 and ticker in risk_manager.positions:
@@ -166,10 +171,12 @@ def run_equity_cycle(reset=False):
         positions_count=len(risk_manager.positions)
     )
 
-    # Log summary to file and save state
     logger.info(
         f"Portfolio Summary | Cash: ${risk_manager.cash:,.2f} | Total Value: ${total_value:,.2f} | P&L: ${pnl:,.2f} | Positions: {len(risk_manager.positions)}")
+
+    # Force save state at the end
     risk_manager.save_state()
+
 
 
 if __name__ == "__main__":

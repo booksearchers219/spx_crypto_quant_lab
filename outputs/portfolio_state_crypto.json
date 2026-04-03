@@ -1,13 +1,18 @@
 {
     "name": "crypto",
-    "cash": 26100.0,
+    "cash": 22707.0,
     "positions": {
         "ETC-USD": {
             "entry_price": 8.09878921508789,
             "quantity": 481.5534639096884,
-            "peak_price": 8.118078231811523
+            "peak_price": 8.178488731384277
+        },
+        "BNB-USD": {
+            "entry_price": 588.9208374023438,
+            "quantity": 5.761385545408953,
+            "peak_price": 588.9208374023438
         }
     },
     "initial_capital": 30000.0,
-    "last_updated": "2026-04-03T12:40:15.632213"
+    "last_updated": "2026-04-03T14:28:08.913242"
 }
