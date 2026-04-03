@@ -1,6 +1,6 @@
 {
     "mode": "equity",
-    "timestamp": "2026-04-03_07-47",
+    "timestamp": "2026-04-03_10-36",
     "top_tickers": [
         "SMCI",
         "UPST",
@@ -11,5 +11,5 @@
         "HOOD",
         "SOFI"
     ],
-    "total_tickers_tested": 58
+    "total_tickers_tested": 62
 }
