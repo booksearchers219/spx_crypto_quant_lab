@@ -3,11 +3,13 @@
   <component name="ChangeListManager">
     <list default="true" id="bd2eeb89-d682-4ee5-b305-611a3b56297e" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/live_trading/crypto_bot.py" beforeDir="false" afterPath="$PROJECT_DIR$/live_trading/crypto_bot.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/live_trading/equity_bot.py" beforeDir="false" afterPath="$PROJECT_DIR$/live_trading/equity_bot.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/outputs/equity_log.csv" beforeDir="false" afterPath="$PROJECT_DIR$/outputs/equity_log.csv" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/outputs/latest_best.json" beforeDir="false" afterPath="$PROJECT_DIR$/outputs/latest_best.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/outputs/portfolio_state_crypto.json" beforeDir="false" afterPath="$PROJECT_DIR$/outputs/portfolio_state_crypto.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/outputs/portfolio_state_equity.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/risk/risk_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/risk/risk_manager.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/data_fetcher.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/data_fetcher.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -30,7 +32,8 @@
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "master"
+    "git-widget-placeholder": "master",
+    "last_opened_file_path": "/home/scott/ai_trading_lab"
   }
 }]]></component>
   <component name="SharedIndexes">

@@ -42,8 +42,11 @@ def setup_logging(bot_name: str):
 
 
 # ================== AGGRESSIVENESS TUNING (MORE AGGRESSIVE) ==================
-BASE_FRACTION = 0.22      # ↑ Larger position sizes (22% of cash per trade)
-WEAK_DD_THRESHOLD = -35   # ↓ Accepts riskier stocks with bigger drawdowns
+BASE_FRACTION = 0.35  # ↑ Larger position sizes (22% of cash per trade)
+WEAK_DD_THRESHOLD = -35  # ↓ Accepts riskier stocks with bigger drawdowns
+MAX_POSITIONS = 6
+
+
 # ===========================================================================
 
 
@@ -108,7 +111,7 @@ def run_equity_cycle(reset=False):
 
     current_prices = {}
 
-    for ticker in active_tickers[:8]:
+    for ticker in active_tickers[:15]:
         try:
             data = fetch_data(ticker, period="30d", interval=TIMEFRAMES["equity"])
             if data is None or len(data) < 100:
@@ -127,10 +130,32 @@ def run_equity_cycle(reset=False):
                 risk_manager.check_trailing_stop(ticker, current_price)
 
             # Buy
-            if signal == 1 and ticker not in risk_manager.positions:
+            # Buy
+            if (
+                    signal == 1 and
+                    ticker not in risk_manager.positions and
+                    len(risk_manager.positions) < MAX_POSITIONS
+            ):
                 success = risk_manager.open_position(
-                    ticker, current_price, base_fraction=BASE_FRACTION
+                    ticker,
+                    current_price,
+                    base_fraction=BASE_FRACTION
                 )
+
+            # Force deployment if too much cash idle
+            if (
+                    len(risk_manager.positions) < MAX_POSITIONS and
+                    risk_manager.cash > risk_manager.initial_capital * 0.30
+            ):
+                if ticker not in risk_manager.positions:
+                    success = risk_manager.open_position(
+                        ticker,
+                        current_price,
+                        base_fraction=BASE_FRACTION
+                    )
+                    if success:
+                        print(f"   🔥 FORCE BUY on {ticker} (deployment mode)")
+
                 if success:
                     print(f"   ✅ BUY on {ticker} | Signal: {signal}")
                     print(f"   DEBUG Cash after buy: ${risk_manager.cash:,.2f}")
@@ -176,7 +201,6 @@ def run_equity_cycle(reset=False):
 
     # Force save state at the end
     risk_manager.save_state()
-
 
 
 if __name__ == "__main__":

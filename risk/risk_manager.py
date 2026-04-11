@@ -36,7 +36,12 @@ class RiskManager:
 
     def open_position(self, ticker, entry_price, base_fraction=0.07, max_addons=2):
         entry_price = float(entry_price)
-        allocation = self.cash * base_fraction
+
+        allocation = self.initial_capital * base_fraction
+
+        # Prevent over-allocation
+        if allocation > self.cash:
+            allocation = self.cash
 
         if allocation < 50:  # minimum trade size
             print(f"⚠️ Not enough cash for {ticker} (allocation ${allocation:.2f})")

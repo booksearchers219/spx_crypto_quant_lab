@@ -75,11 +75,12 @@ def calculate_rsi(series: pd.Series, period: int = 14) -> pd.Series:
 
 
 # ================== AGGRESSIVENESS TUNING ==================
-BASE_FRACTION = 0.13
+BASE_FRACTION = 0.22
 BUY_BUFFER = 1.000
-RSI_MAX = 73
+RSI_MAX = 78
 TRAIL_PERCENT = 0.09
 WEAK_DD_THRESHOLD = -27
+MAX_POSITIONS = 6
 
 
 # ===========================================================
@@ -124,7 +125,7 @@ def run_crypto_cycle(reset=False):
 
     current_prices = {}
 
-    for ticker in active_tickers[:12]:
+    for ticker in active_tickers[:20]:
         try:
             data = robust_fetch_data(ticker)
             if data is None or len(data) < 150:
@@ -171,8 +172,33 @@ def run_crypto_cycle(reset=False):
                 risk_manager.check_trailing_stop(ticker, current_price)
 
             # Buy
-            if buy_condition and ticker not in risk_manager.positions:
-                success = risk_manager.open_position(ticker, current_price, base_fraction=BASE_FRACTION, max_addons=2)
+            if (
+                    buy_condition and
+                    ticker not in risk_manager.positions and
+                    len(risk_manager.positions) < MAX_POSITIONS
+            ):
+                success = risk_manager.open_position(
+                    ticker,
+                    current_price,
+                    base_fraction=BASE_FRACTION,
+                    max_addons=2
+                )
+
+                # Force deployment if too much cash idle
+                if (
+                        len(risk_manager.positions) < MAX_POSITIONS and
+                        risk_manager.cash > risk_manager.initial_capital * 0.25
+                ):
+                    if ticker not in risk_manager.positions:
+                        success = risk_manager.open_position(
+                            ticker,
+                            current_price,
+                            base_fraction=BASE_FRACTION,
+                            max_addons=2
+                        )
+                        if success:
+                            print(f"   🔥 FORCE BUY on {ticker} (deployment mode)")
+
                 if success:
                     print(f"   ✅ BUY on {ticker} | Signal:{signal} Bias:{long_bias} RSI:{rsi_value:.1f}")
 
