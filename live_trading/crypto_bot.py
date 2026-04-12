@@ -21,21 +21,18 @@ from utils.equity_logger import log_portfolio
 # ====================== LOGGING SETUP ======================
 def setup_logging(bot_name: str):
     os.makedirs("logs", exist_ok=True)
-
     today = datetime.now().strftime("%Y%m%d")
     log_filename = f"logs/{bot_name.lower()}_{today}.log"
 
-    # Configure logging - outputs to both console and file
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s | %(levelname)s | %(message)s',
         handlers=[
             logging.FileHandler(log_filename, mode='a', encoding='utf-8'),
-            logging.StreamHandler()  # Keeps your console output
+            logging.StreamHandler()
         ],
-        force=True  # Reset any previous config
+        force=True
     )
-
     logger = logging.getLogger(bot_name)
     logger.info(f"🚀 Logging initialized for {bot_name}")
     return logger
@@ -45,17 +42,15 @@ def robust_fetch_data(ticker, period="60d", interval="15m", max_retries=3):
     for attempt in range(max_retries):
         try:
             data = fetch_data(ticker, period=period, interval=interval)
-            if data is None or len(data) < 50:
+            if data is None or len(data) < 100:
                 if attempt < max_retries - 1:
                     print(f"⚠️ Empty data for {ticker}, retrying ({attempt + 1}/{max_retries})...")
                     time.sleep(3 + attempt * 2)
                     continue
                 print(f"⚠️ No usable data for {ticker} after retries")
                 return None
-
             print(f"✅ Fetched {len(data)} {interval} bars for {ticker} | Latest: {data.index[-1]}")
             return data
-
         except Exception as e:
             if attempt < max_retries - 1:
                 print(f"⚠️ Fetch error {ticker} (attempt {attempt + 1}) - retrying...")
@@ -75,12 +70,11 @@ def calculate_rsi(series: pd.Series, period: int = 14) -> pd.Series:
 
 
 # ================== AGGRESSIVENESS TUNING ==================
-BASE_FRACTION = 0.22
-BUY_BUFFER = 1.000
-RSI_MAX = 78
-TRAIL_PERCENT = 0.09
-WEAK_DD_THRESHOLD = -27
-MAX_POSITIONS = 6
+BASE_FRACTION = 0.23
+BUY_BUFFER = 0.998  # Allow buying slightly below short MA
+RSI_MAX = 85
+WEAK_DD_THRESHOLD = -40
+MAX_POSITIONS = 8
 
 
 # ===========================================================
@@ -112,10 +106,9 @@ def load_best_crypto_tickers():
 
 def run_crypto_cycle(reset=False):
     logger = logging.getLogger("Crypto")
+    logger.info(
+        f"🚀 Crypto Bot Cycle - {time.strftime('%Y-%m-%d %H:%M:%S')} (Aggressive Mode - {BASE_FRACTION * 100:.0f}% sizing + 9% trail)")
 
-    logger.info(f"🚀 Crypto Bot Cycle - {time.strftime('%Y-%m-%d %H:%M:%S')} (Aggressive Mode - 13% sizing + 9% trail)")
-
-    # Create RiskManager - loads saved state by default
     risk_manager = RiskManager(capital=30000, name="crypto")
     if reset:
         risk_manager.reset()
@@ -129,80 +122,66 @@ def run_crypto_cycle(reset=False):
         try:
             data = robust_fetch_data(ticker)
             if data is None or len(data) < 150:
-                print(f"⚠️ Insufficient data for {ticker}, skipping")
                 continue
 
-            current_price = float(data['Close'].iloc[-1].item())
+            current_price = float(data['Close'].iloc[-1])
             current_prices[ticker] = current_price
 
+            # === Run backtest for signal ===
             df, summary = run_backtest(
                 data, strategy="ma_fast", params={"short": 8, "long": 21}, ticker=ticker
             )
-
-            if isinstance(summary, dict):
-                max_dd = summary.get('max_drawdown', 0)
-                if max_dd < WEAK_DD_THRESHOLD:
-                    print(f"   ⏭️ Skipping {ticker} - too weak (Max DD: {max_dd:.1f}%)")
-                    continue
-
             signal = int(df['signal'].iloc[-1]) if 'signal' in df.columns else 0
 
+            # Additional indicators
             df = df.copy()
             df['ma200'] = df['Close'].rolling(window=200).mean()
             df['rsi'] = calculate_rsi(df['Close'], period=14)
 
-            close_value = float(df['Close'].iloc[-1].item())
-            ma200_value = float(df['ma200'].iloc[-1].item()) if pd.notna(df['ma200'].iloc[-1]) else None
-            short_ma_value = float(df['short_ma'].iloc[-1].item()) if 'short_ma' in df.columns and pd.notna(
+            close_value = float(df['Close'].iloc[-1])
+            short_ma_value = float(df['short_ma'].iloc[-1]) if 'short_ma' in df.columns and pd.notna(
                 df['short_ma'].iloc[-1]) else None
+            ma200_value = float(df['ma200'].iloc[-1]) if pd.notna(df['ma200'].iloc[-1]) else None
             rsi_value = float(df['rsi'].iloc[-1]) if 'rsi' in df.columns and pd.notna(df['rsi'].iloc[-1]) else 50.0
 
-            long_bias = 1 if ma200_value is not None and close_value > ma200_value else 0
+            long_bias = 1 if ma200_value is None or close_value > ma200_value else 0
 
-            buy_condition = (
-                    signal == 1 and
-                    long_bias == 1 and
-                    short_ma_value is not None and
-                    close_value > short_ma_value * BUY_BUFFER and
-                    rsi_value < RSI_MAX
-            )
+            # === DEBUG (very helpful) ===
+            short_ma_str = f"{short_ma_value:.4f}" if short_ma_value is not None else "N/A"
+            print(f"DEBUG {ticker:8} | signal:{signal} | bias:{long_bias} | "
+                  f"RSI:{rsi_value:.1f} | Price:{close_value:.4f} | ShortMA:{short_ma_str}")
 
-            # Trailing stop check
+            # Trailing stop check for existing positions
             if ticker in risk_manager.positions:
                 risk_manager.check_trailing_stop(ticker, current_price)
 
-            # Buy
-            if (
-                    buy_condition and
+            # === MAIN ENTRY LOGIC ===
+            if (signal == 1 and
+                    long_bias == 1 and
+                    short_ma_value is not None and
+                    close_value > short_ma_value * BUY_BUFFER and
+                    rsi_value < RSI_MAX and
                     ticker not in risk_manager.positions and
-                    len(risk_manager.positions) < MAX_POSITIONS
-            ):
+                    len(risk_manager.positions) < MAX_POSITIONS):
+
                 success = risk_manager.open_position(
-                    ticker,
-                    current_price,
-                    base_fraction=BASE_FRACTION,
-                    max_addons=2
+                    ticker, current_price, base_fraction=BASE_FRACTION, max_addons=2
                 )
-
-                # Force deployment if too much cash idle
-                if (
-                        len(risk_manager.positions) < MAX_POSITIONS and
-                        risk_manager.cash > risk_manager.initial_capital * 0.25
-                ):
-                    if ticker not in risk_manager.positions:
-                        success = risk_manager.open_position(
-                            ticker,
-                            current_price,
-                            base_fraction=BASE_FRACTION,
-                            max_addons=2
-                        )
-                        if success:
-                            print(f"   🔥 FORCE BUY on {ticker} (deployment mode)")
-
                 if success:
-                    print(f"   ✅ BUY on {ticker} | Signal:{signal} Bias:{long_bias} RSI:{rsi_value:.1f}")
+                    print(f"✅ BUY on {ticker} | RSI:{rsi_value:.1f} Signal:{signal}")
 
-            # Sell on signal
+            # === FORCE DEPLOYMENT if too much cash is idle ===
+            elif (len(risk_manager.positions) < MAX_POSITIONS and
+                  risk_manager.cash > risk_manager.initial_capital * 0.30 and
+                  signal == 1 and long_bias == 1):
+
+                success = risk_manager.open_position(
+                    ticker, current_price, base_fraction=BASE_FRACTION, max_addons=2
+                )
+                if success:
+                    print(f"🔥 FORCE BUY (high cash) on {ticker}")
+
+            # === EXIT ===
             elif signal == -1 and ticker in risk_manager.positions:
                 risk_manager.close_position(ticker, current_price, reason="ma_signal")
 
@@ -210,26 +189,14 @@ def run_crypto_cycle(reset=False):
             print(f"⚠️ Error processing {ticker}: {type(e).__name__} - {e}")
             continue
 
-    # Portfolio Summary
+    # === Portfolio Summary ===
     total_value = risk_manager.get_current_value(current_prices)
-
     print(f"\n💰 Crypto Portfolio Summary (Aggressive Mode)")
-    print(f"   Cash        : ${risk_manager.cash:,.2f}")
+    print(f"   Cash : ${risk_manager.cash:,.2f}")
     print(f"   Total Value : ${total_value:,.2f}")
-    print(f"   Positions   : {len(risk_manager.positions)}")
-
-    if risk_manager.positions:
-        print("   Open Positions:")
-        for ticker, pos in risk_manager.positions.items():
-            curr_p = current_prices.get(ticker, pos.get('entry_price', 0))
-            curr_p = float(curr_p.iloc[-1].item()) if hasattr(curr_p, 'iloc') else float(curr_p)
-            unrealized = (curr_p - pos['entry_price']) * pos['quantity']
-            peak = pos.get('peak_price', pos['entry_price'])
-            print(f"     {ticker:8} | Qty: {pos['quantity']:>10.6f} | Entry: ${pos['entry_price']:.4f} | "
-                  f"Peak: ${peak:.4f} | Current: ${curr_p:.4f} | Unrealized: ${unrealized:,.2f}")
-
-    pnl = total_value - risk_manager.initial_capital
-    print(f"   Combined P&L: ${pnl:,.2f} ({pnl / risk_manager.initial_capital * 100:+.2f}%)")
+    print(f"   Positions : {len(risk_manager.positions)}")
+    print(f"   Combined P&L: ${total_value - risk_manager.initial_capital:,.2f} "
+          f"({(total_value - risk_manager.initial_capital) / risk_manager.initial_capital * 100:+.2f}%)")
     print("-" * 90)
 
     log_portfolio(
@@ -239,9 +206,10 @@ def run_crypto_cycle(reset=False):
         positions_count=len(risk_manager.positions)
     )
 
-    # Log summary to file and save state
-    logger.info(
-        f"Portfolio Summary | Cash: ${risk_manager.cash:,.2f} | Total Value: ${total_value:,.2f} | P&L: ${pnl:,.2f} | Positions: {len(risk_manager.positions)}")
+    logger.info(f"Portfolio Summary | Cash: ${risk_manager.cash:,.2f} | "
+                f"Total Value: ${total_value:,.2f} | P&L: ${total_value - risk_manager.initial_capital:,.2f} | "
+                f"Positions: {len(risk_manager.positions)}")
+
     risk_manager.save_state()
 
 
@@ -250,13 +218,11 @@ if __name__ == "__main__":
     parser.add_argument('--reset', action='store_true', help='Reset portfolio to $30,000 and clear all positions')
     args = parser.parse_args()
 
-    # Setup logging (console + file)
     logger = setup_logging("Crypto")
+    print("🚀 Starting Crypto Bot (Aggressive Mode)")
 
-    print("🚀 Starting Crypto Bot (Aggressive Mode - tuned for more trades...)")
     if args.reset:
         print("🔄 RESET flag detected — starting with fresh $30,000")
-        logger.info("🔄 RESET flag detected — starting with fresh $30,000")
 
     schedule.every(6).hours.do(lambda: run_research(mode="crypto"))
 
