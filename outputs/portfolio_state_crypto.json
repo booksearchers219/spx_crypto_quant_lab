@@ -1,7 +1,33 @@
 {
     "name": "crypto",
-    "cash": 30000.0,
-    "positions": {},
+    "cash": 7500.0,
+    "positions": {
+        "DOGE-USD": {
+            "entry_price": 0.0908849835395813,
+            "quantity": 49513.12994451065,
+            "peak_price": 0.09107760339975357
+        },
+        "ATOM-USD": {
+            "entry_price": 1.7399591207504272,
+            "quantity": 2586.267657862671,
+            "peak_price": 1.7447980642318726
+        },
+        "SOL-USD": {
+            "entry_price": 81.91802978515625,
+            "quantity": 54.932961788778414,
+            "peak_price": 82.20897674560547
+        },
+        "LINK-USD": {
+            "entry_price": 8.761202812194824,
+            "quantity": 513.6281052341803,
+            "peak_price": 8.782807350158691
+        },
+        "ETC-USD": {
+            "entry_price": 8.18978214263916,
+            "quantity": 549.4651654494284,
+            "peak_price": 8.18978214263916
+        }
+    },
     "initial_capital": 30000.0,
-    "last_updated": "2026-04-12T08:56:06.522911"
+    "last_updated": "2026-04-12T10:59:46.604786"
 }

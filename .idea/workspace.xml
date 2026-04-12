@@ -5,7 +5,6 @@
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/live_trading/crypto_bot.py" beforeDir="false" afterPath="$PROJECT_DIR$/live_trading/crypto_bot.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/outputs/equity_log.csv" beforeDir="false" afterPath="$PROJECT_DIR$/outputs/equity_log.csv" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/outputs/latest_best.json" beforeDir="false" afterPath="$PROJECT_DIR$/outputs/latest_best.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/outputs/portfolio_state_crypto.json" beforeDir="false" afterPath="$PROJECT_DIR$/outputs/portfolio_state_crypto.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
