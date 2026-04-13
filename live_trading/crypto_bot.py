@@ -114,25 +114,38 @@ def run_crypto_cycle(reset=False):
                 df['short_ma'].iloc[-1]) else None
             rsi_value = float(df['rsi'].iloc[-1]) if 'rsi' in df.columns and pd.notna(df['rsi'].iloc[-1]) else 50.0
 
-            # === FIXED DEBUG PRINT ===
             short_ma_str = f"{short_ma_value:.4f}" if short_ma_value is not None else "N/A"
-            print(
-                f"DEBUG {ticker:8} | sig:{signal} | RSI:{rsi_value:.1f} | Price:{close_value:.4f} | ShortMA:{short_ma_str}")
+            print(f"DEBUG {ticker:8} | sig:{signal} | RSI:{rsi_value:.1f} | Price:{close_value:.4f} | ShortMA:{short_ma_str}")
 
-            # Check trailing stop
+            # Check trailing stop on open positions
             if ticker in risk_manager.positions:
                 risk_manager.check_trailing_stop(ticker, current_price)
 
-            # === BUY LOGIC ===
-            if (signal == 1 and
-                    short_ma_value is not None and
-                    close_value > short_ma_value * 0.992 and  # slightly looser buffer
-                    rsi_value < 75 and  # allow slightly higher RSI
-                    ticker not in risk_manager.positions and
-                    len(risk_manager.positions) < risk_manager.max_positions):
+            # === REBALANCE / DCA LOGIC (Option C) ===
+            if risk_manager.should_rebalance() and risk_manager.cash > 800:
+                if ticker in risk_manager.positions:
+                    # Prefer adding to existing positions when cash is high
+                    success = risk_manager.add_to_position(ticker, current_price, signal_strength=1.15)
+                    if success:
+                        print(f"🔄 Rebalance DCA → {ticker} (high cash: ${risk_manager.cash:,.0f})")
+                        continue
+                elif len(risk_manager.positions) < risk_manager.max_positions:
+                    # Open new if no position yet
+                    signal_strength = 1.2
+                    success = risk_manager.open_position(ticker, current_price, signal_strength)
+                    if success:
+                        print(f"🔄 Rebalance OPEN → {ticker}")
+                        continue
 
-                # Even stronger sizing on good setups
-                signal_strength = 1.45 if rsi_value < 38 else 1.2 if rsi_value < 48 else 1.0
+            # === NORMAL BUY LOGIC ===
+            if (signal == 1 and
+                short_ma_value is not None and
+                close_value > short_ma_value * 0.99 and
+                rsi_value < 78 and
+                ticker not in risk_manager.positions and
+                len(risk_manager.positions) < risk_manager.max_positions):
+
+                signal_strength = 1.5 if rsi_value < 42 else 1.25 if rsi_value < 52 else 1.0
 
                 success = risk_manager.open_position(
                     ticker=ticker,
@@ -140,8 +153,7 @@ def run_crypto_cycle(reset=False):
                     signal_strength=signal_strength
                 )
                 if success:
-                    print(
-                        f"✅ BUY on {ticker} | RSI:{rsi_value:.1f} | Strength:{signal_strength:.2f} | Deployed ~${risk_manager.cash * 0.22:.0f}")
+                    print(f"✅ BUY on {ticker} | RSI:{rsi_value:.1f} | Strength:{signal_strength:.2f}")
 
             # === SELL LOGIC ===
             elif signal == -1 and ticker in risk_manager.positions:
@@ -176,8 +188,7 @@ def run_crypto_cycle(reset=False):
     from utils.equity_logger import log_portfolio
     log_portfolio("Crypto_Bot", risk_manager.cash, total_value, len(risk_manager.positions))
 
-    logger.info(
-        f"Summary | Cash: ${risk_manager.cash:,.2f} | Total: ${total_value:,.2f} | Positions: {len(risk_manager.positions)}")
+    logger.info(f"Summary | Cash: ${risk_manager.cash:,.2f} | Total: ${total_value:,.2f} | Positions: {len(risk_manager.positions)}")
     risk_manager.save_state()
 
 
@@ -186,7 +197,7 @@ if __name__ == "__main__":
     parser.add_argument('--reset', action='store_true')
     args = parser.parse_args()
 
-    print("🚀 Starting Crypto Bot (Aggressive Cash Deployment Mode)")
+    print("🚀 Starting Crypto Bot (Aggressive + Rebalance Mode)")
 
     schedule.every(6).hours.do(lambda: run_research(mode="crypto"))
 
