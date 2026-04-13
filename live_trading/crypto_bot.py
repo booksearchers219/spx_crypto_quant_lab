@@ -60,16 +60,6 @@ def calculate_rsi(series: pd.Series, period: int = 14) -> pd.Series:
     return rsi
 
 
-# ================== SAFER TUNING ==================
-BASE_FRACTION = 0.15
-BUY_BUFFER = 0.995
-RSI_MAX = 72
-MAX_POSITIONS = 5
-
-
-# ==================================================
-
-
 def load_best_crypto_tickers():
     research_file = "outputs/latest_best.json"
     if os.path.exists(research_file):
@@ -93,14 +83,14 @@ def load_best_crypto_tickers():
 
 def run_crypto_cycle(reset=False):
     logger = setup_logging("Crypto")
-    logger.info(f"🚀 Crypto Bot Cycle - {time.strftime('%Y-%m-%d %H:%M:%S')} (Safer Mode)")
+    logger.info(f"🚀 Crypto Bot Cycle - {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
     risk_manager = RiskManager(capital=30000, name="crypto")
     if reset:
         risk_manager.reset()
 
     active_tickers = load_best_crypto_tickers()
-    logger.info(f"Using {len(active_tickers)} crypto tickers: {active_tickers}")
+    logger.info(f"Using {len(active_tickers)} crypto tickers")
 
     current_prices = {}
 
@@ -124,26 +114,33 @@ def run_crypto_cycle(reset=False):
                 df['short_ma'].iloc[-1]) else None
             rsi_value = float(df['rsi'].iloc[-1]) if 'rsi' in df.columns and pd.notna(df['rsi'].iloc[-1]) else 50.0
 
-            short_ma_str = f"{short_ma_value:.4f}" if short_ma_value is not None else "N/A"
             print(
-                f"DEBUG {ticker:8} | sig:{signal} | RSI:{rsi_value:.1f} | Price:{close_value:.4f} | ShortMA:{short_ma_str}")
+                f"DEBUG {ticker:8} | sig:{signal} | RSI:{rsi_value:.1f} | Price:{close_value:.4f} | ShortMA:{short_ma_value:.4f if short_ma_value else 'N/A'}")
 
+            # Check trailing stop on open positions
             if ticker in risk_manager.positions:
                 risk_manager.check_trailing_stop(ticker, current_price)
 
-            # Entry
+            # === BUY LOGIC ===
             if (signal == 1 and
                     short_ma_value is not None and
-                    close_value > short_ma_value * BUY_BUFFER and
-                    rsi_value < RSI_MAX and
+                    close_value > short_ma_value * 0.995 and  # BUY_BUFFER
+                    rsi_value < 72 and
                     ticker not in risk_manager.positions and
-                    len(risk_manager.positions) < MAX_POSITIONS):
+                    len(risk_manager.positions) < risk_manager.max_positions):
 
-                success = risk_manager.open_position(ticker, current_price, base_fraction=BASE_FRACTION)
+                # Stronger signal = bigger position
+                signal_strength = 1.25 if rsi_value < 35 else 1.0
+
+                success = risk_manager.open_position(
+                    ticker=ticker,
+                    entry_price=current_price,
+                    signal_strength=signal_strength
+                )
                 if success:
-                    print(f"✅ BUY on {ticker} | RSI:{rsi_value:.1f}")
+                    print(f"✅ BUY on {ticker} | RSI:{rsi_value:.1f} | Strength:{signal_strength:.2f}")
 
-            # Exit
+            # === SELL LOGIC ===
             elif signal == -1 and ticker in risk_manager.positions:
                 risk_manager.close_position(ticker, current_price, reason="ma_signal")
 
@@ -151,17 +148,16 @@ def run_crypto_cycle(reset=False):
             print(f"⚠️ Error processing {ticker}: {e}")
             continue
 
-    # === Portfolio Summary with Detailed Positions ===
+    # === Portfolio Summary ===
     total_value = risk_manager.get_current_value(current_prices)
     pnl = total_value - risk_manager.initial_capital
 
-    print(f"\n💰 Crypto Portfolio Summary (Safer Mode)")
-    print(f"   Cash : ${risk_manager.cash:,.2f}")
-    print(f"   Total Value : ${total_value:,.2f}")
-    print(f"   Positions : {len(risk_manager.positions)}")
-    print(f"   Combined P&L: ${pnl:,.2f} ({pnl / risk_manager.initial_capital * 100:+.2f}%)")
+    print(f"\n💰 Crypto Portfolio Summary")
+    print(f"   Cash          : ${risk_manager.cash:,.2f}")
+    print(f"   Total Value   : ${total_value:,.2f}")
+    print(f"   Open Positions: {len(risk_manager.positions)}/{risk_manager.max_positions}")
+    print(f"   Total P&L     : ${pnl:,.2f} ({pnl / risk_manager.initial_capital * 100:+.2f}%)")
 
-    # Show current open positions
     if risk_manager.positions:
         print("\n📍 Open Positions:")
         for ticker, pos in risk_manager.positions.items():
@@ -170,17 +166,15 @@ def run_crypto_cycle(reset=False):
             unrealized = (curr_p - pos['entry_price']) * pos['quantity']
             peak = pos.get('peak_price', pos['entry_price'])
             print(f"   {ticker:8} | Qty: {pos['quantity']:>10.6f} | Entry: ${pos['entry_price']:.4f} | "
-                  f"Peak: ${peak:.4f} | Current: ${curr_p:.4f} | Unrealized: ${unrealized:,.2f}")
-    else:
-        print("\n   No open positions.")
+                  f"Current: ${curr_p:.4f} | Unrealized: ${unrealized:,.2f}")
 
     print("-" * 90)
 
     from utils.equity_logger import log_portfolio
-    log_portfolio("Crypto_Aggressive_v1", risk_manager.cash, total_value, len(risk_manager.positions))
+    log_portfolio("Crypto_Aggressive_v2", risk_manager.cash, total_value, len(risk_manager.positions))
 
     logger.info(
-        f"Portfolio Summary | Cash: ${risk_manager.cash:,.2f} | Total: ${total_value:,.2f} | Positions: {len(risk_manager.positions)}")
+        f"Summary | Cash: ${risk_manager.cash:,.2f} | Total: ${total_value:,.2f} | Positions: {len(risk_manager.positions)}")
     risk_manager.save_state()
 
 
@@ -189,7 +183,8 @@ if __name__ == "__main__":
     parser.add_argument('--reset', action='store_true')
     args = parser.parse_args()
 
-    print("🚀 Starting Crypto Bot (Safer Mode)")
+    print("🚀 Starting Crypto Bot (Aggressive Cash Deployment Mode)")
+
     schedule.every(6).hours.do(lambda: run_research(mode="crypto"))
 
     run_crypto_cycle(reset=args.reset)
