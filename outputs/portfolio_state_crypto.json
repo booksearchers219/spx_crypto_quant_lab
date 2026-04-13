@@ -1,16 +1,16 @@
 {
     "name": "crypto",
-    "cash": 7344.089808506804,
+    "cash": 5728.3900506353075,
     "positions": {
         "FIL-USD": {
             "entry_price": 0.8617957234382629,
             "quantity": 5221.6550600258,
-            "peak_price": 0.8970688581466675
+            "peak_price": 0.8986353278160095
         },
         "LINK-USD": {
             "entry_price": 8.886757850646973,
             "quantity": 506.3713983916408,
-            "peak_price": 8.999547958374023
+            "peak_price": 9.000542640686035
         },
         "DOT-USD": {
             "entry_price": 1.184412956237793,
@@ -20,14 +20,20 @@
         "DOGE-USD": {
             "entry_price": 0.0925368219614029,
             "quantity": 48629.29053125414,
-            "peak_price": 0.09298080950975418
+            "peak_price": 0.09312625974416733
         },
         "AVAX-USD": {
             "entry_price": 9.378840446472168,
             "quantity": 479.80344965700596,
-            "peak_price": 9.39188003540039
+            "peak_price": 9.402632713317871
+        },
+        "SOL-USD": {
+            "entry_price": 84.08811950683594,
+            "quantity": 19.214364256774093,
+            "peak_price": 84.08811950683594,
+            "entry_time": 1776111203.53984
         }
     },
     "initial_capital": 30000.0,
-    "last_updated": "2026-04-13T12:54:49.727033"
+    "last_updated": "2026-04-13T13:13:25.449790"
 }

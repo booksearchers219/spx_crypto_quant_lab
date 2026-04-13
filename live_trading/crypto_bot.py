@@ -114,23 +114,24 @@ def run_crypto_cycle(reset=False):
                 df['short_ma'].iloc[-1]) else None
             rsi_value = float(df['rsi'].iloc[-1]) if 'rsi' in df.columns and pd.notna(df['rsi'].iloc[-1]) else 50.0
 
+            # === FIXED DEBUG PRINT ===
+            short_ma_str = f"{short_ma_value:.4f}" if short_ma_value is not None else "N/A"
             print(
-                f"DEBUG {ticker:8} | sig:{signal} | RSI:{rsi_value:.1f} | Price:{close_value:.4f} | ShortMA:{short_ma_value:.4f if short_ma_value else 'N/A'}")
+                f"DEBUG {ticker:8} | sig:{signal} | RSI:{rsi_value:.1f} | Price:{close_value:.4f} | ShortMA:{short_ma_str}")
 
-            # Check trailing stop on open positions
+            # Check trailing stop
             if ticker in risk_manager.positions:
                 risk_manager.check_trailing_stop(ticker, current_price)
 
             # === BUY LOGIC ===
             if (signal == 1 and
                     short_ma_value is not None and
-                    close_value > short_ma_value * 0.995 and  # BUY_BUFFER
+                    close_value > short_ma_value * 0.995 and
                     rsi_value < 72 and
                     ticker not in risk_manager.positions and
                     len(risk_manager.positions) < risk_manager.max_positions):
 
-                # Stronger signal = bigger position
-                signal_strength = 1.25 if rsi_value < 35 else 1.0
+                signal_strength = 1.35 if rsi_value < 40 else 1.1 if rsi_value < 50 else 1.0
 
                 success = risk_manager.open_position(
                     ticker=ticker,
@@ -138,7 +139,8 @@ def run_crypto_cycle(reset=False):
                     signal_strength=signal_strength
                 )
                 if success:
-                    print(f"✅ BUY on {ticker} | RSI:{rsi_value:.1f} | Strength:{signal_strength:.2f}")
+                    print(
+                        f"✅ BUY on {ticker} | RSI:{rsi_value:.1f} | Strength:{signal_strength:.2f} | Deployed ~${risk_manager.cash * 0.22:.0f}")
 
             # === SELL LOGIC ===
             elif signal == -1 and ticker in risk_manager.positions:
