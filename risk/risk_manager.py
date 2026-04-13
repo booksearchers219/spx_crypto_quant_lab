@@ -12,11 +12,11 @@ class RiskManager:
         self.trade_history = []
         self.state_file = f"outputs/portfolio_state_{self.name}.json"
 
-        # New configurable parameters
-        self.base_fraction = 0.22      # 22% of available cash per trade (was only 7%)
-        self.max_fraction_per_trade = 0.45  # Never use more than 45% of cash on one trade
-        self.min_trade_value = 400     # Minimum $ per trade
-        self.max_positions = 6         # Allow up to 6 open positions
+        # More aggressive cash deployment
+        self.base_fraction = 0.28  # ← was 0.22   (now 28% of available cash)
+        self.max_fraction_per_trade = 0.55  # ← was 0.45
+        self.min_trade_value = 350
+        self.max_positions = 8  # ← was 6
 
         # Try to load previous state first
         if not self.load_state():

@@ -2,10 +2,11 @@ import pandas as pd
 import os
 from datetime import datetime
 
+
 def show_dashboard():
-    print("=" * 120)
+    print("=" * 110)
     print("                  COMBINED VIRTUAL TRADING DASHBOARD")
-    print("=" * 120)
+    print("=" * 110)
     print(f"Generated : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
     log_file = "outputs/equity_log.csv"
@@ -22,45 +23,50 @@ def show_dashboard():
         # Get the SINGLE most recent record for each unique bot name
         latest = df.loc[df.groupby('bot')['timestamp'].idxmax()].reset_index(drop=True)
 
-        total_cycles = len(df)  # Total log entries = total cycles across all bots
+        total_cycles = len(df)
+
+        print("📊 ACTIVE BOTS:\n")
 
         for _, row in latest.iterrows():
-            bot_name = str(row.get('bot', 'Unknown')).upper()
-
-            if 'CRYPTO' in bot_name or 'CALM' in bot_name:
-                print("💰 CRYPTO BOT")
-            else:
-                print("📈 EQUITY BOT")
-
-            initial = 30000.0
-            cash = row.get('cash', 0.0)
-            total_value = row.get('total_value', 0.0)
+            bot_name = str(row.get('bot', 'Unknown'))
+            cash = float(row.get('cash', 0.0))
+            total_value = float(row.get('total_value', 0.0))
             positions = int(row.get('positions', 0))
             last_updated = row.get('timestamp', 'N/A')
 
-            # Count cycles for this specific bot
-            bot_cycles = len(df[df['bot'] == row.get('bot')])
+            # Count total cycles for this bot
+            bot_cycles = len(df[df['bot'] == bot_name])
 
-            pnl = total_value - initial
-            pnl_pct = (pnl / initial * 100) if initial > 0 else 0.0
+            pnl = total_value - 30000.0
+            pnl_pct = (pnl / 30000.0 * 100) if 30000.0 > 0 else 0.0
 
-            print(f"   Initial     : ${initial:,.2f}")
+            # === Better Bot Type Detection ===
+            if 'crypto' in bot_name.lower():
+                print("💰 CRYPTO BOT")
+                print(f"   Name        : {bot_name}")
+            elif 'equity' in bot_name.lower() or 'spx' in bot_name.lower():
+                print("📈 EQUITY BOT")
+                print(f"   Name        : {bot_name}")
+            else:
+                print("🤖 BOT")
+                print(f"   Name        : {bot_name}")
+
+            print(f"   Initial     : $30,000.00")
             print(f"   Cash        : ${cash:,.2f}")
             print(f"   Value       : ${total_value:,.2f} | P&L: ${pnl:,.2f} ({pnl_pct:+.2f}%)")
             print(f"   Positions   : {positions}")
             print(f"   Cycles      : {bot_cycles:,}")
             print(f"   Last Updated: {last_updated}")
-            print("-" * 100)
+            print("-" * 110)
             print()
 
-        # Overall summary
-        print("=" * 120)
+        # Overall Summary
+        print("=" * 110)
         print("📊 OVERALL DASHBOARD SUMMARY")
         print(f"   Total Combined Cycles : {total_cycles:,}")
-        print(f"   Total Log Entries     : {len(df):,}")
         print(f"   Unique Bots Tracked   : {df['bot'].nunique()}")
         print(f"   Dashboard Generated   : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print("=" * 120)
+        print("=" * 110)
 
     except Exception as e:
         print(f"⚠️ Error displaying dashboard: {e}")

@@ -126,12 +126,13 @@ def run_crypto_cycle(reset=False):
             # === BUY LOGIC ===
             if (signal == 1 and
                     short_ma_value is not None and
-                    close_value > short_ma_value * 0.995 and
-                    rsi_value < 72 and
+                    close_value > short_ma_value * 0.992 and  # slightly looser buffer
+                    rsi_value < 75 and  # allow slightly higher RSI
                     ticker not in risk_manager.positions and
                     len(risk_manager.positions) < risk_manager.max_positions):
 
-                signal_strength = 1.35 if rsi_value < 40 else 1.1 if rsi_value < 50 else 1.0
+                # Even stronger sizing on good setups
+                signal_strength = 1.45 if rsi_value < 38 else 1.2 if rsi_value < 48 else 1.0
 
                 success = risk_manager.open_position(
                     ticker=ticker,
@@ -173,7 +174,7 @@ def run_crypto_cycle(reset=False):
     print("-" * 90)
 
     from utils.equity_logger import log_portfolio
-    log_portfolio("Crypto_Aggressive_v2", risk_manager.cash, total_value, len(risk_manager.positions))
+    log_portfolio("Crypto_Bot", risk_manager.cash, total_value, len(risk_manager.positions))
 
     logger.info(
         f"Summary | Cash: ${risk_manager.cash:,.2f} | Total: ${total_value:,.2f} | Positions: {len(risk_manager.positions)}")
