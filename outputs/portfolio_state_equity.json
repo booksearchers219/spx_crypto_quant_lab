@@ -5,7 +5,7 @@
         "SMCI": {
             "entry_price": 24.625,
             "quantity": 426.3959390862944,
-            "peak_price": 25.885000228881836
+            "peak_price": 27.475000381469727
         },
         "INTC": {
             "entry_price": 64.13500213623047,
@@ -15,9 +15,9 @@
         "MU": {
             "entry_price": 410.8299865722656,
             "quantity": 21.90687217135959,
-            "peak_price": 424.0799865722656
+            "peak_price": 436.0
         }
     },
     "initial_capital": 30000.0,
-    "last_updated": "2026-04-13T12:44:25.556973"
+    "last_updated": "2026-04-14T07:48:32.483420"
 }

@@ -1,13 +1,13 @@
 {
     "mode": "crypto",
-    "timestamp": "2026-04-13_12-54",
+    "timestamp": "2026-04-14_07-41",
     "top_tickers": [
         "ETC-USD",
-        "ATOM-USD",
         "DOGE-USD",
-        "AVAX-USD",
-        "DOT-USD",
+        "ATOM-USD",
         "LINK-USD",
+        "DOT-USD",
+        "AVAX-USD",
         "SOL-USD",
         "FIL-USD"
     ],
