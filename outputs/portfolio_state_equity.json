@@ -1,23 +1,60 @@
 {
     "name": "equity",
-    "cash": 0.0,
+    "cash": 268.8715475611142,
     "positions": {
         "SMCI": {
-            "entry_price": 24.625,
-            "quantity": 426.3959390862944,
-            "peak_price": 27.475000381469727
-        },
-        "INTC": {
-            "entry_price": 64.13500213623047,
-            "quantity": 163.71715366433972,
-            "peak_price": 65.38390350341797
+            "entry_price": 24.74101715250068,
+            "quantity": 448.15039340107177,
+            "peak_price": 27.68869972229004
         },
         "MU": {
-            "entry_price": 410.8299865722656,
-            "quantity": 21.90687217135959,
-            "peak_price": 436.0
+            "entry_price": 417.9198555028703,
+            "quantity": 29.477711893189415,
+            "peak_price": 465.75
+        },
+        "QCOM": {
+            "entry_price": 131.80999755859375,
+            "quantity": 14.846796898466785,
+            "peak_price": 132.93,
+            "entry_time": 1776180616.4548101
+        },
+        "AMD": {
+            "entry_price": 252.9514608888838,
+            "quantity": 7.352410786405963,
+            "peak_price": 255.24000549316406,
+            "entry_time": 1776181827.1113498
+        },
+        "MSFT": {
+            "entry_price": 393.5862121582031,
+            "quantity": 1.2322726571062363,
+            "peak_price": 394.3699951171875,
+            "entry_time": 1776181839.7802505
+        },
+        "TSLA": {
+            "entry_price": 364.02665359954455,
+            "quantity": 2.3985190782144863,
+            "peak_price": 365.2799987792969,
+            "entry_time": 1776190583.0366743
+        },
+        "AVGO": {
+            "entry_price": 380.0199890136719,
+            "quantity": 0.8891492565830658,
+            "peak_price": 394.72,
+            "entry_time": 1776195599.3698277
+        },
+        "NFLX": {
+            "entry_price": 106.065,
+            "quantity": 2.8284542497525105,
+            "peak_price": 106.1699,
+            "entry_time": 1776199339.8991435
+        },
+        "AMZN": {
+            "entry_price": 248.6606,
+            "quantity": 1.2064637501880073,
+            "peak_price": 248.672,
+            "entry_time": 1776200580.661452
         }
     },
     "initial_capital": 30000.0,
-    "last_updated": "2026-04-14T07:48:32.483420"
+    "last_updated": "2026-04-14T15:32:05.604075"
 }
