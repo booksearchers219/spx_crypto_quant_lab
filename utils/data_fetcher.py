@@ -17,8 +17,8 @@ def load_watchlist(file_path: str):
         return []
 
 
-def fetch_data(ticker: str, period: str = "730d", interval: str = "1h", max_retries: int = 3) -> pd.DataFrame:
-    """Fetch OHLCV data using yfinance with robust error handling"""
+def fetch_data(ticker: str, period: str = "730d", interval: str = "1h", max_retries: int = 5) -> pd.DataFrame:
+    """Improved fetch with better yfinance handling"""
 
     # Adjust period based on interval
     if interval in ["1m", "2m", "5m", "15m"]:
@@ -30,36 +30,30 @@ def fetch_data(ticker: str, period: str = "730d", interval: str = "1h", max_retr
 
     for attempt in range(max_retries):
         try:
-            # Try to import scipy early to catch missing dependency clearly
-            try:
-                import scipy
-            except ImportError:
-                print(f"❌ scipy is required by yfinance but not installed for {ticker}")
-                print("   Run: pip install scipy")
-                return pd.DataFrame()
-
             stock = yf.Ticker(ticker)
             data = stock.history(
                 period=period,
                 interval=interval,
                 auto_adjust=True,
                 prepost=True,
-                # repair=True  # commented out for now - can trigger more issues
+                timeout=20
             )
 
-            if data is None or data.empty:
-                print(f"⚠️ No data returned for {ticker} (attempt {attempt + 1})")
+            if data is None or data.empty or len(data) < 20:
+                print(f"⚠️ No/empty data for {ticker} (attempt {attempt + 1}/{max_retries})")
                 if attempt < max_retries - 1:
-                    time.sleep(2 ** attempt + 1)
+                    time.sleep(2 ** attempt + 2)
                     continue
                 return pd.DataFrame()
 
+            # Keep only needed columns
             required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
-            if not all(col in data.columns for col in required_cols):
-                print(f"⚠️ Missing columns for {ticker}")
+            data = data[[col for col in required_cols if col in data.columns]].copy()
+
+            if len(data) < 20:
+                print(f"⚠️ Too few bars for {ticker} ({len(data)})")
                 return pd.DataFrame()
 
-            data = data[required_cols].copy()
             data.index = pd.to_datetime(data.index)
             data = data.sort_index()
 
@@ -67,35 +61,29 @@ def fetch_data(ticker: str, period: str = "730d", interval: str = "1h", max_retr
             return data
 
         except Exception as e:
-            error_msg = str(e).lower()
-            if "nonetype" in error_msg or "subscriptable" in error_msg:
-                print(f"⚠️ yfinance NoneType bug for {ticker} (attempt {attempt + 1}/{max_retries})")
-            elif "scipy" in error_msg:
-                print(f"❌ Missing scipy dependency for {ticker}")
-                print("   Fix: pip install scipy")
-                return pd.DataFrame()
+            error_str = str(e).lower()
+            if "nonetype" in error_str or "timeout" in error_str or "rate limit" in error_str:
+                print(f"⚠️ yfinance NoneType / timeout for {ticker} (attempt {attempt + 1}/{max_retries})")
             else:
-                print(f"❌ Error fetching {ticker} (attempt {attempt + 1}): {type(e).__name__} - {e}")
+                print(f"⚠️ Error fetching {ticker} (attempt {attempt + 1}): {type(e).__name__}")
 
             if attempt < max_retries - 1:
-                time.sleep(2 ** attempt + 2)
-            else:
-                print(f"❌ Giving up on {ticker} after {max_retries} attempts")
-                return pd.DataFrame()
+                time.sleep(3 + attempt * 3)  # progressive backoff
 
+    print(f"❌ Failed to fetch {ticker} after {max_retries} attempts")
     return pd.DataFrame()
 
 
 def fetch_all_watchlist(watchlist_file: str, interval: str = "1h"):
-    """Fetch data for all tickers in a watchlist"""
+    """Fetch data for all tickers"""
     tickers = load_watchlist(watchlist_file)
     data_dict = {}
-    print(f"📡 Fetching {len(tickers)} tickers from {watchlist_file}...")
+    print(f"📡 Fetching {len(tickers)} tickers...")
 
     for ticker in tickers:
         df = fetch_data(ticker, interval=interval)
         if not df.empty:
             data_dict[ticker] = df
 
-    print(f"✅ Successfully fetched data for {len(data_dict)}/{len(tickers)} tickers")
+    print(f"✅ Successfully fetched {len(data_dict)}/{len(tickers)} tickers")
     return data_dict
