@@ -37,8 +37,8 @@ def show_dashboard():
             # Count total cycles for this bot
             bot_cycles = len(df[df['bot'] == bot_name])
 
-            pnl = total_value - 30000.0
-            pnl_pct = (pnl / 30000.0 * 100) if 30000.0 > 0 else 0.0
+            pnl = total_value - 80000.0
+            pnl_pct = (pnl / 80000.0 * 100) if 80000.0 > 0 else 0.0
 
             # === Better Bot Type Detection ===
             if 'crypto' in bot_name.lower():
@@ -51,7 +51,7 @@ def show_dashboard():
                 print("🤖 BOT")
                 print(f"   Name        : {bot_name}")
 
-            print(f"   Initial     : $30,000.00")
+            print(f"   Initial     : $80,000.00")
             print(f"   Cash        : ${cash:,.2f}")
             print(f"   Value       : ${total_value:,.2f} | P&L: ${pnl:,.2f} ({pnl_pct:+.2f}%)")
             print(f"   Positions   : {positions}")
