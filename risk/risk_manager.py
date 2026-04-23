@@ -5,7 +5,7 @@ import time
 
 
 class RiskManager:
-    def __init__(self, capital=30000, name="crypto"):
+    def __init__(self, capital=80000, name="crypto"):
         self.initial_capital = float(capital)
         self.name = name
         self.positions = {}
@@ -23,6 +23,26 @@ class RiskManager:
         if not self.load_state():
             self.cash = float(capital)
             print(f"ℹ️ Starting fresh {self.name} portfolio with ${self.cash:,.2f}")
+
+    def reset(self):
+        """Reset portfolio to initial capital"""
+        # Force capital to 80k
+        self.initial_capital = 80000.0
+
+        self.cash = float(self.initial_capital)
+        self.positions = {}
+        self.trade_history = []
+
+        # Delete old state file
+        if os.path.exists(self.state_file):
+            try:
+                os.remove(self.state_file)
+                print(f"🗑️  Deleted old {self.name} state file")
+            except Exception as e:
+                print(f"⚠️ Could not delete state file: {e}")
+
+        self.save_state()
+        print(f"✅ {self.name.upper()} Portfolio FULLY Reset to ${self.cash:,.0f}")
 
     def should_rebalance(self):
         """Check if we should force deploy idle cash"""

@@ -19,9 +19,9 @@ def main():
         from risk.risk_manager import RiskManager
 
         if args.reset or args.reset_crypto:
-            RiskManager(capital=30000, name="crypto").reset()
+            RiskManager(capital=80000, name="crypto").reset()
         if args.reset or args.reset_equity:
-            RiskManager(capital=30000, name="equity").reset()
+            RiskManager(capital=80000, name="equity").reset()
 
         print("✅ Reset complete!")
         return

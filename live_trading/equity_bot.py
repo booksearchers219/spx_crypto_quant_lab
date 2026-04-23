@@ -83,7 +83,7 @@ def run_equity_cycle(reset=False):
     print(
         f"{'✅ Market OPEN - Running full cycle' if market_open else '🌙 Market CLOSED (After-hours) - Updating prices only'}")
 
-    risk_manager = RiskManager(capital=30000, name="equity")
+    risk_manager = RiskManager(capital=80000, name="equity")
     if reset:
         risk_manager.reset()
 

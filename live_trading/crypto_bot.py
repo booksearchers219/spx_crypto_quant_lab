@@ -85,7 +85,7 @@ def run_crypto_cycle(reset=False):
     logger = setup_logging("Crypto")
     logger.info(f"🚀 Crypto Bot Cycle - {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
-    risk_manager = RiskManager(capital=30000, name="crypto")
+    risk_manager = RiskManager(capital=80000, name="crypto")
     if reset:
         risk_manager.reset()
 

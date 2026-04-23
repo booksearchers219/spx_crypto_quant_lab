@@ -6,3 +6,19 @@ outputs/reports/*
 outputs/logs/*
 *.log
 .DS_Store
+
+# Quant lab heavy folders
+logs/
+outputs/
+data/
+__pycache__/
+*.log
+
+
+# Heavy folders that kill PyCharm
+logs/
+outputs/
+data/
+__pycache__/
+*.log
+
