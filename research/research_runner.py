@@ -1,75 +1,56 @@
+import json
 import os
 import pandas as pd
-import json
-import argparse
-from datetime import datetime
-from utils.data_fetcher import fetch_all_watchlist
 from research.backtest_engine import run_backtest
-from config.settings import EQUITY_WATCHLIST, CRYPTO_WATCHLIST, TIMEFRAMES
+from utils.data_fetcher import fetch_data
 
 
-def run_research(mode: str = "equity"):
-    """Run research and save best tickers for live bots"""
-    print(f"\n🔬 Starting Research Mode: {mode.upper()}\n")
+def run_research(mode="crypto"):
+    print("🔬 Starting Research Mode:", mode.upper())
 
-    if mode == "equity":
-        watchlist_file = EQUITY_WATCHLIST
-        interval = TIMEFRAMES["equity"]
-    else:
-        watchlist_file = CRYPTO_WATCHLIST
-        interval = TIMEFRAMES["crypto"]
+    if mode == "crypto":
+        tickers = ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD", 
+                   "ADA-USD", "DOGE-USD", "AVAX-USD", "LINK-USD", "DOT-USD",
+                   "LTC-USD", "ATOM-USD", "NEAR-USD", "FIL-USD", "ETC-USD",
+                   "XLM-USD", "ARB-USD"]
 
-    data_dict = fetch_all_watchlist(watchlist_file, interval=interval)
+        print(f"📡 Fetching {len(tickers)} tickers...")
 
-    results = {}
-    for ticker, data in data_dict.items():
-        if len(data) < 100:
-            print(f"⏭️  Skipping {ticker} - not enough data")
-            continue
+        results = []
+        for ticker in tickers:
+            try:
+                data = fetch_data(ticker, period="60d", interval="15m")
+                if data is None or len(data) < 100:
+                    continue
 
-        print(f"Running backtest on {ticker}...")
-        _, summary = run_backtest(
-            data,
-            strategy="ma_fast",
-            params={"short": 5, "long": 13},
-            ticker=ticker
-        )
-        results[ticker] = summary
+                print(f"Running backtest on {ticker}...")
+                _, summary = run_backtest(data, ticker=ticker)
 
-    if results:
-        summary_df = pd.DataFrame.from_dict(results, orient='index')
-        summary_df = summary_df.sort_values("total_return_pct", ascending=False)
+                results.append({
+                    "ticker": ticker,
+                    "sharpe": summary.get("sharpe_ratio", 0),
+                    "return": summary.get("total_return_pct", 0),
+                    "trades": summary.get("trades", 0)
+                })
+            except Exception as e:
+                print(f"   ⚠️ Backtest failed for {ticker}: {e}")
 
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
-        os.makedirs("outputs/reports", exist_ok=True)
+        # Save best tickers
+        results.sort(key=lambda x: x["sharpe"], reverse=True)
+        best_tickers = [r["ticker"] for r in results[:8]]
 
-        summary_df.to_csv(f"outputs/reports/{timestamp}_research_summary.csv")
-        summary_df.to_json(f"outputs/reports/{timestamp}_research_summary.json", indent=4)
+        os.makedirs("research", exist_ok=True)
+        with open("research/best_crypto_tickers.json", "w") as f:
+            json.dump({"tickers": best_tickers, "timestamp": str(pd.Timestamp.now())}, f, indent=2)
 
-        # Save best tickers for live bots
-        best_tickers = summary_df.head(8).index.tolist()
-        best_data = {
-            "mode": mode,
-            "timestamp": timestamp,
-            "top_tickers": best_tickers,
-            "total_tickers_tested": len(results)
-        }
+        print("✅ Research Complete!")
+        print(f"📌 Best 8 tickers saved to research/best_crypto_tickers.json")
+        
+        # Also save to outputs for legacy
+        os.makedirs("outputs", exist_ok=True)
         with open("outputs/latest_best.json", "w") as f:
-            json.dump(best_data, f, indent=4)
+            json.dump({"tickers": best_tickers}, f, indent=2)
 
-        print(f"\n✅ Research Complete!")
-        print(summary_df.head(10))
-        print(f"\n📌 Best {len(best_tickers)} tickers saved to outputs/latest_best.json")
-    else:
-        print("\n⚠️ No successful backtests.")
+        return best_tickers
 
-    return results
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run research for equity or crypto")
-    parser.add_argument("--research_mode", choices=["equity", "crypto"], default="equity",
-                        help="Which market to research")
-    args = parser.parse_args()
-
-    run_research(mode=args.research_mode)
+    return []
