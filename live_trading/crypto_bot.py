@@ -3,6 +3,7 @@ import schedule
 import json
 import os
 import pandas as pd
+import numpy as np
 import matplotlib
 import argparse
 import logging
@@ -15,6 +16,7 @@ from research.research_runner import run_research
 from research.backtest_engine import run_backtest
 from risk.risk_manager import RiskManager
 from config.settings import CRYPTO_WATCHLIST
+from strategies.strategy_engine import generate_signal
 
 
 # ====================== LOGGING SETUP ======================
@@ -51,16 +53,8 @@ def robust_fetch_data(ticker, period="60d", interval="15m", max_retries=3):
                 return None
 
 
-def calculate_rsi(series: pd.Series, period: int = 14) -> pd.Series:
-    delta = series.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-    rs = gain / loss
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
-
-
 def load_best_crypto_tickers():
+    """Your original research-based ticker selector"""
     research_file = "outputs/latest_best.json"
     if os.path.exists(research_file):
         try:
@@ -94,7 +88,7 @@ def run_crypto_cycle(reset=False):
 
     current_prices = {}
 
-    for ticker in active_tickers[:20]:
+    for ticker in active_tickers[:15]:   # Limit for speed
         try:
             data = robust_fetch_data(ticker)
             if data is None or len(data) < 150:
@@ -103,61 +97,36 @@ def run_crypto_cycle(reset=False):
             current_price = float(data['Close'].iloc[-1])
             current_prices[ticker] = current_price
 
-            df, summary = run_backtest(data, strategy="ma_fast", params={"short": 8, "long": 21}, ticker=ticker)
-            signal = int(df['signal'].iloc[-1]) if 'signal' in df.columns else 0
+            # === NEW SIGNAL + BACKTEST ===
+            signal_info = generate_signal(data, strategy_name="ma_momentum")
+            signal = signal_info["signal"]
+            strength = signal_info["strength"]
+            atr = signal_info["atr"]
+            rsi = signal_info["rsi"]
 
-            df = df.copy()
-            df['rsi'] = calculate_rsi(df['Close'])
+            print(f"DEBUG {ticker:8} | sig:{signal} | RSI:{rsi:.1f} | ATR:{atr:.4f} | Price:{current_price:.4f} | Strength:{strength:.2f}")
 
-            close_value = float(df['Close'].iloc[-1])
-            short_ma_value = float(df['short_ma'].iloc[-1]) if 'short_ma' in df.columns and pd.notna(
-                df['short_ma'].iloc[-1]) else None
-            rsi_value = float(df['rsi'].iloc[-1]) if 'rsi' in df.columns and pd.notna(df['rsi'].iloc[-1]) else 50.0
-
-            short_ma_str = f"{short_ma_value:.4f}" if short_ma_value is not None else "N/A"
-            print(f"DEBUG {ticker:8} | sig:{signal} | RSI:{rsi_value:.1f} | Price:{close_value:.4f} | ShortMA:{short_ma_str}")
-
-            # Check trailing stop on open positions
+            # Trailing / hard stop check
             if ticker in risk_manager.positions:
                 risk_manager.check_trailing_stop(ticker, current_price)
 
-            # === REBALANCE / DCA LOGIC (Option C) ===
-            if risk_manager.should_rebalance() and risk_manager.cash > 800:
-                if ticker in risk_manager.positions:
-                    # Prefer adding to existing positions when cash is high
-                    success = risk_manager.add_to_position(ticker, current_price, signal_strength=1.15)
-                    if success:
-                        print(f"🔄 Rebalance DCA → {ticker} (high cash: ${risk_manager.cash:,.0f})")
-                        continue
-                elif len(risk_manager.positions) < risk_manager.max_positions:
-                    # Open new if no position yet
-                    signal_strength = 1.2
-                    success = risk_manager.open_position(ticker, current_price, signal_strength)
-                    if success:
-                        print(f"🔄 Rebalance OPEN → {ticker}")
-                        continue
-
-            # === NORMAL BUY LOGIC ===
+            # === BUY LOGIC ===
             if (signal == 1 and
-                short_ma_value is not None and
-                close_value > short_ma_value * 0.99 and
-                rsi_value < 78 and
                 ticker not in risk_manager.positions and
                 len(risk_manager.positions) < risk_manager.max_positions):
-
-                signal_strength = 1.5 if rsi_value < 42 else 1.25 if rsi_value < 52 else 1.0
 
                 success = risk_manager.open_position(
                     ticker=ticker,
                     entry_price=current_price,
-                    signal_strength=signal_strength
+                    atr=atr,
+                    signal_strength=strength
                 )
                 if success:
-                    print(f"✅ BUY on {ticker} | RSI:{rsi_value:.1f} | Strength:{signal_strength:.2f}")
+                    print(f"✅ BUY {ticker} | RSI:{rsi:.1f} | Strength:{strength:.2f}")
 
             # === SELL LOGIC ===
             elif signal == -1 and ticker in risk_manager.positions:
-                risk_manager.close_position(ticker, current_price, reason="ma_signal")
+                risk_manager.close_position(ticker, current_price, reason="ma_momentum_signal")
 
         except Exception as e:
             print(f"⚠️ Error processing {ticker}: {e}")
@@ -179,8 +148,7 @@ def run_crypto_cycle(reset=False):
             curr_p = current_prices.get(ticker, pos['entry_price'])
             curr_p = float(curr_p) if not hasattr(curr_p, 'iloc') else float(curr_p.iloc[-1])
             unrealized = (curr_p - pos['entry_price']) * pos['quantity']
-            peak = pos.get('peak_price', pos['entry_price'])
-            print(f"   {ticker:8} | Qty: {pos['quantity']:>10.6f} | Entry: ${pos['entry_price']:.4f} | "
+            print(f"   {ticker:8} | Qty: {pos['quantity']:>10.4f} | Entry: ${pos['entry_price']:.4f} | "
                   f"Current: ${curr_p:.4f} | Unrealized: ${unrealized:,.2f}")
 
     print("-" * 90)
@@ -197,7 +165,7 @@ if __name__ == "__main__":
     parser.add_argument('--reset', action='store_true')
     args = parser.parse_args()
 
-    print("🚀 Starting Crypto Bot (Aggressive + Rebalance Mode)")
+    print("🚀 Starting Crypto Bot (Improved Risk + Momentum Strategy)")
 
     schedule.every(6).hours.do(lambda: run_research(mode="crypto"))
 

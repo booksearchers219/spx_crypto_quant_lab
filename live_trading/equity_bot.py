@@ -2,6 +2,7 @@ import time
 import schedule
 import os
 import pandas as pd
+import numpy as np
 import matplotlib
 import argparse
 import logging
@@ -15,19 +16,18 @@ from research.research_runner import run_research
 from research.backtest_engine import run_backtest
 from risk.risk_manager import RiskManager
 from config.settings import EQUITY_WATCHLIST
+from strategies.strategy_engine import generate_signal
 from utils.equity_logger import log_portfolio
 
 
 def is_market_open():
-    """Return True only during regular US market hours (9:30-16:00 ET, weekdays)"""
     now = datetime.now(ZoneInfo("America/New_York"))
-    if now.weekday() >= 5:  # Weekend
+    if now.weekday() >= 5:
         return False
     current_time = now.time()
     return dt_time(9, 30) <= current_time < dt_time(16, 0)
 
 
-# ====================== LOGGING SETUP ======================
 def setup_logging(bot_name: str):
     os.makedirs("logs", exist_ok=True)
     today = datetime.now().strftime("%Y%m%d")
@@ -46,33 +46,19 @@ def robust_fetch_data(ticker, period="60d", interval="1h", max_retries=5):
     for attempt in range(max_retries):
         try:
             data = fetch_data(ticker, period=period, interval=interval)
-
-            if data is None or len(data) < 30:
-                print(f"⚠️ Insufficient data for {ticker} (attempt {attempt + 1}/{max_retries})")
+            if data is None or len(data) < 80:
                 if attempt < max_retries - 1:
-                    time.sleep(3 + attempt * 2)
+                    time.sleep(3)
                     continue
                 return None
-
             print(f"✅ Fetched {len(data)} {interval} bars for {ticker} | Latest: {data.index[-1]}")
             return data
-
         except Exception as e:
-            print(f"⚠️ Exception fetching {ticker} (attempt {attempt + 1}): {type(e).__name__}")
             if attempt < max_retries - 1:
-                time.sleep(4 + attempt * 2)
-
-    print(f"❌ Failed to fetch {ticker} after {max_retries} attempts - skipping")
-    return None
-
-
-def calculate_rsi(series: pd.Series, period: int = 14) -> pd.Series:
-    delta = series.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-    rs = gain / loss
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
+                time.sleep(4)
+            else:
+                print(f"❌ Failed fetching {ticker}: {e}")
+                return None
 
 
 def run_equity_cycle(reset=False):
@@ -80,19 +66,15 @@ def run_equity_cycle(reset=False):
     logger.info(f"🚀 Equity Bot Cycle - {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
     market_open = is_market_open()
-    print(
-        f"{'✅ Market OPEN - Running full cycle' if market_open else '🌙 Market CLOSED (After-hours) - Updating prices only'}")
+    print(f"{'✅ Market OPEN' if market_open else '🌙 Market CLOSED'} - {'Trading enabled' if market_open else 'Price update only'}")
 
     risk_manager = RiskManager(capital=80000, name="equity")
     if reset:
         risk_manager.reset()
 
     active_tickers = load_watchlist(EQUITY_WATCHLIST)
-
-    # Limit number of tickers early morning or when market is closed to reduce spam
     if not market_open or datetime.now(ZoneInfo("America/New_York")).hour < 10:
-        active_tickers = active_tickers[:25]
-        print(f"   (Limited to top 25 tickers for faster run)")
+        active_tickers = active_tickers[:20]
 
     logger.info(f"Using {len(active_tickers)} equity tickers")
 
@@ -101,62 +83,52 @@ def run_equity_cycle(reset=False):
     for ticker in active_tickers:
         try:
             data = robust_fetch_data(ticker)
-            if data is None or len(data) < 80:
+            if data is None or len(data) < 100:
                 continue
 
             current_price = float(data['Close'].iloc[-1])
             current_prices[ticker] = current_price
 
-            # Only run trading logic when market is open
+            # Only run signals & trading when market is open
             if market_open:
-                df, summary = run_backtest(data, strategy="ma_fast", params={"short": 8, "long": 21}, ticker=ticker)
-                signal = int(df['signal'].iloc[-1]) if 'signal' in df.columns else 0
+                signal_info = generate_signal(data, strategy_name="ma_momentum")
+                signal = signal_info["signal"]
+                strength = signal_info["strength"]
+                atr = signal_info["atr"]
+                rsi = signal_info["rsi"]
 
-                df = df.copy()
-                df['rsi'] = calculate_rsi(df['Close'])
+                print(f"DEBUG {ticker:6} | sig:{signal} | RSI:{rsi:.1f} | ATR:{atr:.2f} | Price:{current_price:.2f} | Str:{strength:.2f}")
 
-                close_value = float(df['Close'].iloc[-1])
-                short_ma_value = float(df['short_ma'].iloc[-1]) if 'short_ma' in df.columns and pd.notna(
-                    df['short_ma'].iloc[-1]) else None
-                rsi_value = float(df['rsi'].iloc[-1]) if 'rsi' in df.columns and pd.notna(df['rsi'].iloc[-1]) else 50.0
-
-                short_ma_str = f"{short_ma_value:.4f}" if short_ma_value is not None else "N/A"
-                print(
-                    f"DEBUG {ticker:6} | sig:{signal} | RSI:{rsi_value:.1f} | Price:{close_value:.2f} | ShortMA:{short_ma_str}")
-
+                # Check stops
                 if ticker in risk_manager.positions:
                     risk_manager.check_trailing_stop(ticker, current_price)
 
-                # Rebalance / DCA
-                if risk_manager.should_rebalance() and risk_manager.cash > 800:
-                    if ticker in risk_manager.positions:
-                        success = risk_manager.add_to_position(ticker, current_price, 1.15)
-                        if success:
-                            print(f"🔄 Rebalance DCA → {ticker}")
+                # BUY
+                if (signal == 1 and
+                    ticker not in risk_manager.positions and
+                    len(risk_manager.positions) < risk_manager.max_positions):
 
-                # Normal Buy
-                if (signal == 1 and short_ma_value is not None and
-                        close_value > short_ma_value * 0.99 and rsi_value < 78 and
-                        ticker not in risk_manager.positions and
-                        len(risk_manager.positions) < risk_manager.max_positions):
-
-                    signal_strength = 1.45 if rsi_value < 40 else 1.2 if rsi_value < 50 else 1.0
-                    success = risk_manager.open_position(ticker, current_price, signal_strength)
+                    success = risk_manager.open_position(
+                        ticker=ticker,
+                        entry_price=current_price,
+                        atr=atr,
+                        signal_strength=strength
+                    )
                     if success:
-                        print(f"✅ BUY {ticker} | RSI:{rsi_value:.1f}")
+                        print(f"✅ BUY {ticker} | RSI:{rsi:.1f} | Strength:{strength:.2f}")
 
-                # Sell
+                # SELL
                 elif signal == -1 and ticker in risk_manager.positions:
-                    risk_manager.close_position(ticker, current_price, reason="ma_signal")
+                    risk_manager.close_position(ticker, current_price, reason="ma_momentum_signal")
 
         except Exception as e:
             print(f"⚠️ Error processing {ticker}: {e}")
             continue
 
-    # === Summary ===
+    # Summary
     total_value = risk_manager.get_current_value(current_prices)
     pnl = total_value - risk_manager.initial_capital
-    status = "OPEN" if market_open else "CLOSED (After-hours/Weekend)"
+    status = "OPEN" if market_open else "CLOSED"
 
     print(f"\n💰 Equity Portfolio Summary ({status})")
     print(f"   Cash          : ${risk_manager.cash:,.2f}")
@@ -170,14 +142,13 @@ def run_equity_cycle(reset=False):
             curr_p = current_prices.get(ticker, pos['entry_price'])
             curr_p = float(curr_p) if not hasattr(curr_p, 'iloc') else float(curr_p.iloc[-1])
             unrealized = (curr_p - pos['entry_price']) * pos['quantity']
-            print(f"   {ticker:6} | Qty: {pos['quantity']:>8.4f} | Entry: ${pos['entry_price']:.4f} | "
+            print(f"   {ticker:6} | Qty: {pos['quantity']:>8.2f} | Entry: ${pos['entry_price']:.2f} | "
                   f"Current: ${curr_p:.2f} | Unrealized: ${unrealized:,.2f}")
 
     print("-" * 90)
 
     log_portfolio("Equity_Bot", risk_manager.cash, total_value, len(risk_manager.positions))
-    logger.info(
-        f"Summary | Cash: ${risk_manager.cash:,.2f} | Total: ${total_value:,.2f} | Positions: {len(risk_manager.positions)}")
+    logger.info(f"Summary | Cash: ${risk_manager.cash:,.2f} | Total: ${total_value:,.2f} | Positions: {len(risk_manager.positions)}")
     risk_manager.save_state()
 
 
@@ -186,7 +157,7 @@ if __name__ == "__main__":
     parser.add_argument('--reset', action='store_true')
     args = parser.parse_args()
 
-    print("🚀 Starting Equity Bot (Aggressive + Rebalance Mode with Market Hours Check)")
+    print("🚀 Starting Equity Bot (Improved Risk + Momentum Strategy)")
 
     run_equity_cycle(reset=args.reset)
     schedule.every(20).minutes.do(lambda: run_equity_cycle(reset=False))

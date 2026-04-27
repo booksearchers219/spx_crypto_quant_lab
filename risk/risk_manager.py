@@ -12,92 +12,105 @@ class RiskManager:
         self.trade_history = []
         self.state_file = f"outputs/portfolio_state_{self.name}.json"
 
-        # === AGGRESSIVE + REBALANCE SETTINGS ===
-        self.base_fraction = 0.28
-        self.max_fraction_per_trade = 0.55
-        self.min_trade_value = 300
-        self.max_positions = 10
-        self.rebalance_threshold = 1500      # If cash > this → trigger rebalance
-        self.dca_threshold = 800             # Add to existing positions if cash > this
+        # === Balanced & Safe Settings ===
+        self.base_risk_per_trade = 0.008   # 0.8% of capital per trade
+        self.max_risk_per_trade = 0.015    # 1.5% max
+        self.max_portfolio_risk = 0.08     # 8% total at risk
+        self.min_trade_value = 800
+        self.max_positions = 8 if name == "crypto" else 6
+
+        self.trailing_stop_pct = 0.045     # 4.5% from peak
+        self.hard_stop_pct = 0.09          # 9% from entry
+
+        # Daily risk control
+        self.daily_loss_limit = 0.025      # Max 2.5% loss per day
+        self.daily_pnl = 0.0
+        self.current_date = datetime.now().date()
 
         if not self.load_state():
             self.cash = float(capital)
             print(f"ℹ️ Starting fresh {self.name} portfolio with ${self.cash:,.2f}")
 
     def reset(self):
-        """Reset portfolio to initial capital"""
-        # Force capital to 80k
         self.initial_capital = 80000.0
-
         self.cash = float(self.initial_capital)
         self.positions = {}
         self.trade_history = []
-
-        # Delete old state file
+        self.daily_pnl = 0.0
         if os.path.exists(self.state_file):
             try:
                 os.remove(self.state_file)
-                print(f"🗑️  Deleted old {self.name} state file")
-            except Exception as e:
-                print(f"⚠️ Could not delete state file: {e}")
-
+            except:
+                pass
         self.save_state()
-        print(f"✅ {self.name.upper()} Portfolio FULLY Reset to ${self.cash:,.0f}")
+        print(f"✅ {self.name.upper()} Portfolio Reset to ${self.cash:,.0f}")
 
-    def should_rebalance(self):
-        """Check if we should force deploy idle cash"""
-        return self.cash > self.rebalance_threshold
+    def _check_new_day(self):
+        today = datetime.now().date()
+        if today != self.current_date:
+            self.daily_pnl = 0.0
+            self.current_date = today
 
-    def calculate_position_size(self, current_price: float, signal_strength: float = 1.0):
+    def calculate_position_size(self, current_price: float, atr: float = None, signal_strength: float = 1.0):
+        self._check_new_day()
         if self.cash < self.min_trade_value:
             return 0, 0
 
-        base_allocation = self.cash * self.base_fraction * signal_strength
-        allocation = min(base_allocation, self.cash * self.max_fraction_per_trade)
-        allocation = max(allocation, self.min_trade_value)
-        allocation = min(allocation, self.cash)
+        risk_amount = self.initial_capital * self.base_risk_per_trade * signal_strength
+        risk_amount = min(risk_amount, self.initial_capital * self.max_risk_per_trade)
 
-        quantity = allocation / current_price
-        return quantity, allocation
+        if atr and atr > 0:
+            stop_distance = max(atr * 2.0, current_price * 0.03)
+            quantity = risk_amount / stop_distance
+        else:
+            quantity = risk_amount / (current_price * 0.045)
 
-    def open_position(self, ticker, entry_price, signal_strength: float = 1.0):
+        quantity = min(quantity, (self.cash * 0.25) / current_price)
+        usd_amount = quantity * current_price
+
+        return max(quantity, 0), min(usd_amount, self.cash)
+
+    def open_position(self, ticker, entry_price, atr=None, signal_strength: float = 1.0):
+        self._check_new_day()
+        if self.daily_pnl <= -self.initial_capital * self.daily_loss_limit:
+            print(f"⚠️ Daily loss limit hit ({self.daily_pnl:,.0f}). No new positions today.")
+            return False
+
         if len(self.positions) >= self.max_positions and ticker not in self.positions:
-            print(f"⚠️ Max positions reached. Trying DCA instead.")
-            return self.add_to_position(ticker, entry_price, signal_strength)
+            return self.add_to_position(ticker, entry_price, atr, signal_strength)
 
         entry_price = float(entry_price)
-        quantity, usd_amount = self.calculate_position_size(entry_price, signal_strength)
+        quantity, usd_amount = self.calculate_position_size(entry_price, atr, signal_strength)
 
-        if quantity <= 0:
+        if quantity <= 0 or usd_amount < self.min_trade_value:
             return False
 
         self.cash -= usd_amount
 
         if ticker in self.positions:
-            # DCA: average down/up
             pos = self.positions[ticker]
             total_value = pos['quantity'] * pos['entry_price'] + usd_amount
             total_qty = pos['quantity'] + quantity
             pos['entry_price'] = total_value / total_qty
             pos['quantity'] = total_qty
-            print(f"📈 DCA added to {ticker} | +${usd_amount:,.0f} | New Avg: ${pos['entry_price']:.4f}")
+            print(f"📈 DCA added to {ticker} | +${usd_amount:,.0f}")
         else:
             self.positions[ticker] = {
                 'entry_price': entry_price,
                 'quantity': float(quantity),
                 'peak_price': entry_price,
-                'entry_time': time.time()
+                'entry_time': time.time(),
+                'atr_at_entry': atr
             }
-            print(f"🟢 Opened NEW position {ticker} | ${usd_amount:,.0f} | Qty: {quantity:.6f}")
+            print(f"🟢 Opened {ticker} | ${usd_amount:,.0f} | Qty: {quantity:.4f}")
 
         self.save_state()
         return True
 
-    def add_to_position(self, ticker, current_price, signal_strength=1.0):
-        """Force DCA into an existing position"""
+    def add_to_position(self, ticker, current_price, atr=None, signal_strength=1.0):
         if ticker not in self.positions:
             return False
-        return self.open_position(ticker, current_price, signal_strength)
+        return self.open_position(ticker, current_price, atr, signal_strength)
 
     def check_trailing_stop(self, ticker, current_price):
         if ticker not in self.positions:
@@ -109,11 +122,12 @@ class RiskManager:
         if current_price > pos.get('peak_price', pos['entry_price']):
             pos['peak_price'] = current_price
 
-        trail_percent = 0.08
-        stop_price = pos['peak_price'] * (1 - trail_percent)
+        trail_stop = pos['peak_price'] * (1 - self.trailing_stop_pct)
+        hard_stop = pos['entry_price'] * (1 - self.hard_stop_pct)
 
-        if current_price <= stop_price:
-            self.close_position(ticker, current_price, reason="trailing_stop")
+        if current_price <= max(trail_stop, hard_stop):
+            reason = "trailing_stop" if current_price <= trail_stop else "hard_stop"
+            self.close_position(ticker, current_price, reason=reason)
             return True
         return False
 
@@ -126,19 +140,14 @@ class RiskManager:
         pnl = (exit_price - pos['entry_price']) * pos['quantity']
 
         self.cash += pos['quantity'] * exit_price
+        self.daily_pnl += pnl
 
-        trade = {
-            'ticker': ticker,
-            'entry': pos['entry_price'],
-            'exit': exit_price,
-            'quantity': pos['quantity'],
-            'pnl': pnl,
-            'reason': reason,
-            'timestamp': time.time()
-        }
+        trade = {'ticker': ticker, 'entry': pos['entry_price'], 'exit': exit_price,
+                 'quantity': pos['quantity'], 'pnl': pnl, 'reason': reason,
+                 'timestamp': time.time()}
         self.trade_history.append(trade)
 
-        print(f"🔴 Closed {ticker} | Exit: ${exit_price:.4f} | P&L: ${pnl:,.2f} | Reason: {reason}")
+        print(f"🔴 Closed {ticker} | Exit: ${exit_price:.4f} | P&L: ${pnl:,.2f} | {reason}")
 
         del self.positions[ticker]
         self.save_state()
@@ -148,10 +157,7 @@ class RiskManager:
         value = float(self.cash)
         for ticker, pos in self.positions.items():
             price = current_prices.get(ticker, pos['entry_price'])
-            if hasattr(price, 'iloc'):
-                price = float(price.iloc[-1])
-            else:
-                price = float(price)
+            price = float(price.iloc[-1]) if hasattr(price, 'iloc') else float(price)
             value += float(pos.get('quantity', 0)) * price
         return value
 
@@ -179,7 +185,7 @@ class RiskManager:
             self.cash = float(state.get("cash", self.initial_capital))
             self.positions = state.get("positions", {})
             self.initial_capital = float(state.get("initial_capital", self.initial_capital))
-            print(f"✅ Loaded previous {self.name} state — Cash: ${self.cash:,.2f} | Positions: {len(self.positions)}")
+            print(f"✅ Loaded {self.name} state — Cash: ${self.cash:,.2f} | Positions: {len(self.positions)}")
             return True
         except Exception as e:
             print(f"⚠️ Failed to load state: {e}")
