@@ -11,12 +11,30 @@ from datetime import datetime
 
 matplotlib.use('Agg')
 
-from utils.data_fetcher import fetch_data, load_watchlist
+from utils.data_fetcher import fetch_data
 from research.research_runner import run_research
 from risk.risk_manager import RiskManager
-from config.settings import CRYPTO_WATCHLIST
 from strategies.strategy_engine import generate_signal
-from utils.equity_logger import log_portfolio  # ← Import at top
+from utils.equity_logger import log_portfolio
+
+
+# ====================== INDICATOR HELPERS ======================
+def add_rsi(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
+    delta = df['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    df['RSI'] = 100 - (100 / (1 + rs))
+    return df
+
+
+def add_atr(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
+    high_low = df['High'] - df['Low']
+    high_close = np.abs(df['High'] - df['Close'].shift())
+    low_close = np.abs(df['Low'] - df['Close'].shift())
+    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+    df['ATR'] = tr.rolling(window=period).mean()
+    return df
 
 
 # ====================== LOGGING SETUP ======================
@@ -53,25 +71,28 @@ def robust_fetch_data(ticker, period="60d", interval="15m", max_retries=3):
                 return None
 
 
-def load_best_crypto_tickers():
-    research_file = "outputs/latest_best.json"
-    if os.path.exists(research_file):
-        try:
-            file_age_hours = (time.time() - os.path.getmtime(research_file)) / 3600
-            with open(research_file, "r") as f:
-                data = json.load(f)
-            if data.get("mode") == "crypto" and file_age_hours < 6:
-                print(f"📋 Using recent crypto research ({file_age_hours:.1f}h old)")
-                return data.get("top_tickers", [])
-        except:
-            pass
-    print("🔬 Running fresh crypto research...")
-    run_research(mode="crypto")
+def load_best_crypto_tickers(force_research: bool = False):
+    research_file = "research/best_crypto_tickers.json"
+
+    if force_research or not os.path.exists(research_file):
+        print("🔬 Forcing fresh crypto research...")
+        run_research(mode="crypto")
+
+    elif os.path.exists(research_file):
+        age_hours = (time.time() - os.path.getmtime(research_file)) / 3600
+        if age_hours > 6:
+            print(f"📋 Research is {age_hours:.1f}h old → Running fresh research")
+            run_research(mode="crypto")
+
     try:
-        with open(research_file, "r") as f:
-            return json.load(f).get("top_tickers", [])
-    except:
-        return load_watchlist(CRYPTO_WATCHLIST)
+        with open(research_file, 'r') as f:
+            data = json.load(f)
+        tickers = data.get("tickers", ["BTC-USD"])
+        print(f"✅ Loaded {len(tickers)} crypto tickers from research")
+        return tickers
+    except Exception as e:
+        print(f"⚠️ Could not load research file: {e}. Using defaults.")
+        return ["BTC-USD", "ETH-USD", "SOL-USD"]
 
 
 def run_crypto_cycle(reset=False):
@@ -82,7 +103,7 @@ def run_crypto_cycle(reset=False):
     if reset:
         risk_manager.reset()
 
-    active_tickers = load_best_crypto_tickers()
+    active_tickers = load_best_crypto_tickers(force_research=True)
     logger.info(f"Using {len(active_tickers)} crypto tickers")
 
     current_prices = {}
@@ -93,25 +114,26 @@ def run_crypto_cycle(reset=False):
             if data is None or len(data) < 150:
                 continue
 
+            # Add indicators
+            data = add_rsi(data)
+            data = add_atr(data)
+
             current_price = float(data['Close'].iloc[-1])
             current_prices[ticker] = current_price
 
             signal_info = generate_signal(data, strategy_name="ma_momentum")
-            signal = signal_info["signal"]
-            strength = signal_info["strength"]
-            atr = signal_info["atr"]
-            rsi = signal_info["rsi"]
+            signal = signal_info.get("signal", 0)
+            strength = signal_info.get("strength", 1.0)
+            atr = signal_info.get("atr", data['ATR'].iloc[-1] if 'ATR' in data.columns else 0)
+            rsi = signal_info.get("rsi", data['RSI'].iloc[-1] if 'RSI' in data.columns else 50)
 
-            print(
-                f"DEBUG {ticker:8} | sig:{signal} | RSI:{rsi:.1f} | ATR:{atr:.4f} | Price:{current_price:.4f} | Strength:{strength:.2f}")
+            print(f"DEBUG {ticker:8} | sig:{signal} | RSI:{rsi:.1f} | ATR:{atr:.4f} | Price:{current_price:.4f} | Strength:{strength:.2f}")
 
             if ticker in risk_manager.positions:
                 risk_manager.check_trailing_stop(ticker, current_price)
 
-            if (signal == 1 and
-                    ticker not in risk_manager.positions and
-                    len(risk_manager.positions) < risk_manager.max_positions):
-
+            if (signal == 1 and ticker not in risk_manager.positions and
+                len(risk_manager.positions) < risk_manager.max_positions):
                 success = risk_manager.open_position(
                     ticker=ticker,
                     entry_price=current_price,
@@ -128,7 +150,7 @@ def run_crypto_cycle(reset=False):
             print(f"⚠️ Error processing {ticker}: {e}")
             continue
 
-    # === Portfolio Summary ===
+    # Portfolio Summary
     total_value = risk_manager.get_current_value(current_prices)
     pnl = total_value - risk_manager.initial_capital
 
@@ -142,24 +164,14 @@ def run_crypto_cycle(reset=False):
         print("\n📍 Open Positions:")
         for ticker, pos in risk_manager.positions.items():
             curr_p = current_prices.get(ticker, pos['entry_price'])
-            curr_p = float(curr_p) if not hasattr(curr_p, 'iloc') else float(curr_p.iloc[-1])
             unrealized = (curr_p - pos['entry_price']) * pos['quantity']
-            print(f"   {ticker:8} | Qty: {pos['quantity']:>10.4f} | Entry: ${pos['entry_price']:.4f} | "
-                  f"Current: ${curr_p:.4f} | Unrealized: ${unrealized:,.2f}")
+            print(f"   {ticker} | Qty: {pos['quantity']:.4f} | Entry: ${pos['entry_price']:.2f} | "
+                  f"Current: ${curr_p:.2f} | Unrealized: ${unrealized:,.2f}")
 
     print("-" * 90)
 
-    # Log with reset support
-    log_portfolio(
-        "Crypto_Bot",
-        risk_manager.cash,
-        total_value,
-        len(risk_manager.positions),
-        reset=reset
-    )
-
-    logger.info(
-        f"Summary | Cash: ${risk_manager.cash:,.2f} | Total: ${total_value:,.2f} | Positions: {len(risk_manager.positions)}")
+    log_portfolio("Crypto_Bot", risk_manager.cash, total_value, len(risk_manager.positions), reset=reset)
+    logger.info(f"Summary | Cash: ${risk_manager.cash:,.2f} | Total: ${total_value:,.2f} | Positions: {len(risk_manager.positions)}")
     risk_manager.save_state()
 
 
@@ -172,7 +184,6 @@ if __name__ == "__main__":
 
     run_crypto_cycle(reset=args.reset)
 
-    # Schedule future runs (without reset)
     schedule.every(15).minutes.do(lambda: run_crypto_cycle(reset=False))
     schedule.every(6).hours.do(lambda: run_research(mode="crypto"))
 

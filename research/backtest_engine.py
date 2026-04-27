@@ -1,11 +1,31 @@
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import json
 import os
+
+
+def add_rsi(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
+    """Add RSI indicator"""
+    delta = df['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    df['RSI'] = 100 - (100 / (1 + rs))
+    return df
+
+
+def add_atr(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
+    """Add ATR indicator"""
+    high_low = df['High'] - df['Low']
+    high_close = np.abs(df['High'] - df['Close'].shift())
+    low_close = np.abs(df['Low'] - df['Close'].shift())
+    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+    df['ATR'] = tr.rolling(window=period).mean()
+    return df
 
 
 def run_backtest(data: pd.DataFrame, strategy: str = "ma_momentum",
@@ -16,47 +36,47 @@ def run_backtest(data: pd.DataFrame, strategy: str = "ma_momentum",
     df = data.copy()
     ticker_name = ticker or "Unknown"
 
-    # Use new strategy engine
-    from strategies.strategy_engine import generate_signal, calculate_atr
+    # Add indicators if missing
+    if 'RSI' not in df.columns:
+        df = add_rsi(df)
+    if 'ATR' not in df.columns:
+        df = add_atr(df)
 
-    # Run signals on historical data
+    # Strategy signals
+    from strategies.strategy_engine import generate_signal
+
     signals = []
-    for i in range(50, len(df)):  # Warm-up period
+    for i in range(50, len(df)):
         window = df.iloc[i - 100:i + 1] if i > 100 else df.iloc[:i + 1]
         sig = generate_signal(window, strategy_name=strategy, **params)
         signals.append(sig["signal"])
 
-    # Pad beginning with zeros
+    # Pad signals
     signals = [0] * (len(df) - len(signals)) + signals
     df['signal'] = signals
 
-    # More realistic backtest
+    # Backtest calculations
     df['returns'] = df['Close'].pct_change()
     df['strategy_returns'] = df['signal'].shift(1) * df['returns']
 
-    # Add realistic costs
-    commission = 0.0010  # 0.10%
-    slippage = 0.0008   # 0.08%
+    commission = 0.0010
+    slippage = 0.0008
     df['strategy_returns'] = df['strategy_returns'] - (commission + slippage) * df['signal'].shift(1).abs()
 
-    # Drop NaN rows for metrics
+    df['equity'] = initial_capital * (1 + df['strategy_returns'].fillna(0)).cumprod()
+
     df_clean = df.dropna(subset=['strategy_returns'])
 
-    # Performance metrics
-    total_return = (df['equity'].iloc[-1] / initial_capital - 1) * 100 if 'equity' in df.columns else 0
-    max_dd = ((df['equity'] / df['equity'].cummax()) - 1).min() * 100 if 'equity' in df.columns else 0
+    total_return = (df['equity'].iloc[-1] / initial_capital - 1) * 100
+    max_dd = ((df['equity'] / df['equity'].cummax()) - 1).min() * 100
 
-    # Improved Sharpe (15m bars → ~96 periods per day)
     returns = df_clean['strategy_returns']
     if len(returns) < 10 or returns.std() == 0:
         sharpe = 0.0
     else:
         sharpe = (returns.mean() / returns.std()) * np.sqrt(252 * 96)
 
-    # Calculate equity curve (after cleaning)
-    df['equity'] = initial_capital * (1 + df['strategy_returns']).cumprod()
-
-    # Save outputs
+    # Save results
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
     output_dir = f"outputs/reports/{timestamp}_{strategy}_{ticker_name}"
     os.makedirs(output_dir, exist_ok=True)
@@ -81,11 +101,11 @@ def run_backtest(data: pd.DataFrame, strategy: str = "ma_momentum",
     # Plot
     plt.figure(figsize=(14, 8))
     plt.plot(df['equity'], label='Strategy Equity', linewidth=2)
-    plt.title(f"{ticker_name} | {strategy} | Return: {total_return:.1f}% | DD: {max_dd:.1f}% | Sharpe: {sharpe:.2f}")
+    plt.title(f"{ticker_name} | Return: {total_return:.1f}% | DD: {max_dd:.1f}% | Sharpe: {sharpe:.2f}")
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.savefig(f"outputs/charts/{timestamp}_{ticker_name}.png", dpi=200)
     plt.close()
 
-    print(f"   ✅ {ticker_name} → Return: {total_return:.1f}% | DD: {max_dd:.1f}% | Sharpe: {sharpe:.2f}")
+    print(f"   ✅ {ticker_name} → Return: {total_return:.1f}% | DD: {max_dd:.1f}% | Sharpe: {sharpe:.2f} | Trades: {summary['trades']}")
     return df, summary

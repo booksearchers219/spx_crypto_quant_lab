@@ -1,15 +1,15 @@
 {
     "mode": "crypto",
-    "timestamp": "2026-04-27_06-37",
+    "timestamp": "2026-04-27_11-44",
     "top_tickers": [
+        "ARB-USD",
         "BTC-USD",
-        "DOT-USD",
-        "XLM-USD",
-        "ETC-USD",
-        "FIL-USD",
+        "ETH-USD",
         "NEAR-USD",
-        "ATOM-USD",
-        "LTC-USD"
+        "LTC-USD",
+        "BNB-USD",
+        "FIL-USD",
+        "DOGE-USD"
     ],
     "total_tickers_tested": 17
 }

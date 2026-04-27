@@ -1,7 +1,15 @@
 {
     "name": "crypto",
-    "cash": 80000.0,
-    "positions": {},
+    "cash": 61866.66666666667,
+    "positions": {
+        "BTC-USD": {
+            "entry_price": 76716.390625,
+            "quantity": 0.23636843685688363,
+            "peak_price": 76716.390625,
+            "entry_time": 1777315458.2187603,
+            "atr_at_entry": 233.65736607142858
+        }
+    },
     "initial_capital": 80000.0,
-    "last_updated": "2026-04-27T10:05:11.123850"
+    "last_updated": "2026-04-27T11:44:19.017541"
 }
