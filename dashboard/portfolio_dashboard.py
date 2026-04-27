@@ -2,7 +2,6 @@ import pandas as pd
 import os
 from datetime import datetime
 
-
 def show_dashboard():
     print("=" * 110)
     print("                  COMBINED VIRTUAL TRADING DASHBOARD")
@@ -12,7 +11,7 @@ def show_dashboard():
     log_file = "outputs/equity_log.csv"
 
     if not os.path.exists(log_file):
-        print("⚠️ Log file not found yet. Run the bots for a few cycles.")
+        print("⚠️ Log file not found. Run both bots with --reset.")
         return
 
     try:
@@ -20,10 +19,10 @@ def show_dashboard():
         df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
         df = df.sort_values('timestamp')
 
-        # Get the SINGLE most recent record for each unique bot name
-        latest = df.loc[df.groupby('bot')['timestamp'].idxmax()].reset_index(drop=True)
+        print(f"📊 Log contains {len(df)} entries | Unique bots: {df['bot'].nunique()}\n")
 
-        total_cycles = len(df)
+        # Latest record per bot
+        latest = df.loc[df.groupby('bot')['timestamp'].idxmax()].reset_index(drop=True)
 
         print("📊 ACTIVE BOTS:\n")
 
@@ -34,23 +33,19 @@ def show_dashboard():
             positions = int(row.get('positions', 0))
             last_updated = row.get('timestamp', 'N/A')
 
-            # Count total cycles for this bot
             bot_cycles = len(df[df['bot'] == bot_name])
 
             pnl = total_value - 80000.0
             pnl_pct = (pnl / 80000.0 * 100) if 80000.0 > 0 else 0.0
 
-            # === Better Bot Type Detection ===
             if 'crypto' in bot_name.lower():
                 print("💰 CRYPTO BOT")
-                print(f"   Name        : {bot_name}")
-            elif 'equity' in bot_name.lower() or 'spx' in bot_name.lower():
+            elif 'equity' in bot_name.lower():
                 print("📈 EQUITY BOT")
-                print(f"   Name        : {bot_name}")
             else:
                 print("🤖 BOT")
-                print(f"   Name        : {bot_name}")
 
+            print(f"   Name        : {bot_name}")
             print(f"   Initial     : $80,000.00")
             print(f"   Cash        : ${cash:,.2f}")
             print(f"   Value       : ${total_value:,.2f} | P&L: ${pnl:,.2f} ({pnl_pct:+.2f}%)")
@@ -60,19 +55,10 @@ def show_dashboard():
             print("-" * 110)
             print()
 
-        # Overall Summary
-        print("=" * 110)
-        print("📊 OVERALL DASHBOARD SUMMARY")
-        print(f"   Total Combined Cycles : {total_cycles:,}")
-        print(f"   Unique Bots Tracked   : {df['bot'].nunique()}")
-        print(f"   Dashboard Generated   : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print("=" * 110)
+        # print("=" * 110)
 
     except Exception as e:
-        print(f"⚠️ Error displaying dashboard: {e}")
-
-    print("\nDashboard refreshed every 10 minutes.")
-
+        print(f"⚠️ Error: {e}")
 
 if __name__ == "__main__":
     show_dashboard()

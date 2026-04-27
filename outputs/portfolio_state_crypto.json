@@ -1,15 +1,7 @@
 {
     "name": "crypto",
-    "cash": 59910.27439534249,
-    "positions": {
-        "LTC-USD": {
-            "entry_price": 55.720001220703125,
-            "quantity": 358.93753700365806,
-            "peak_price": 55.849998474121094,
-            "entry_time": 1777297069.7713199,
-            "atr_at_entry": 0.10357121058872767
-        }
-    },
+    "cash": 80000.0,
+    "positions": {},
     "initial_capital": 80000.0,
-    "last_updated": "2026-04-27T08:24:10.093005"
+    "last_updated": "2026-04-27T10:05:11.123850"
 }

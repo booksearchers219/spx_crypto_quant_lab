@@ -147,7 +147,15 @@ def run_equity_cycle(reset=False):
 
     print("-" * 90)
 
-    log_portfolio("Equity_Bot", risk_manager.cash, total_value, len(risk_manager.positions))
+    # Updated logging with reset support
+    log_portfolio(
+        "Equity_Bot",
+        risk_manager.cash,
+        total_value,
+        len(risk_manager.positions),
+        reset=reset
+    )
+
     logger.info(f"Summary | Cash: ${risk_manager.cash:,.2f} | Total: ${total_value:,.2f} | Positions: {len(risk_manager.positions)}")
     risk_manager.save_state()
 
