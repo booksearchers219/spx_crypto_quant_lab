@@ -1,22 +1,29 @@
 {
     "name": "crypto",
-    "cash": 48000.00000000001,
+    "cash": 36000.00000000001,
     "positions": {
         "BTC-USD": {
             "entry_price": 76716.390625,
             "quantity": 0.23636843685688363,
-            "peak_price": 77134.078125,
+            "peak_price": 77306.8671875,
             "entry_time": 1777315458.2187603,
             "atr_at_entry": 233.65736607142858
         },
         "SOL-USD": {
             "entry_price": 84.37000274658203,
             "quantity": 164.35541324227856,
-            "peak_price": 84.63999938964844,
+            "peak_price": 84.68000030517578,
             "entry_time": 1777325456.197859,
             "atr_at_entry": 0.19785853794642858
+        },
+        "FIL-USD": {
+            "entry_price": 0.9129999876022339,
+            "quantity": 13143.483201478459,
+            "peak_price": 0.9129999876022339,
+            "entry_time": 1777385120.7191854,
+            "atr_at_entry": 0.003499993256160191
         }
     },
     "initial_capital": 80000.0,
-    "last_updated": "2026-04-27T16:30:50.978056"
+    "last_updated": "2026-04-28T07:22:04.014590"
 }

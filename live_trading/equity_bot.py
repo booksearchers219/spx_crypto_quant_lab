@@ -66,7 +66,8 @@ def run_equity_cycle(reset=False):
     logger.info(f"🚀 Equity Bot Cycle - {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
     market_open = is_market_open()
-    print(f"{'✅ Market OPEN' if market_open else '🌙 Market CLOSED'} - {'Trading enabled' if market_open else 'Price update only'}")
+    print(
+        f"{'✅ Market OPEN' if market_open else '🌙 Market CLOSED'} - {'Trading enabled' if market_open else 'Price update only'}")
 
     risk_manager = RiskManager(capital=80000, name="equity")
     if reset:
@@ -92,12 +93,15 @@ def run_equity_cycle(reset=False):
             # Only run signals & trading when market is open
             if market_open:
                 signal_info = generate_signal(data, strategy_name="ma_momentum")
-                signal = signal_info["signal"]
-                strength = signal_info["strength"]
-                atr = signal_info["atr"]
-                rsi = signal_info["rsi"]
 
-                print(f"DEBUG {ticker:6} | sig:{signal} | RSI:{rsi:.1f} | ATR:{atr:.2f} | Price:{current_price:.2f} | Str:{strength:.2f}")
+                # SAFE EXTRACTION - prevents KeyError
+                signal = signal_info.get("signal", 0)
+                strength = signal_info.get("strength", 0.0)
+                atr = signal_info.get("atr", 2.0)
+                rsi = signal_info.get("rsi", 50.0)
+
+                print(
+                    f"DEBUG {ticker:6} | sig:{signal} | RSI:{rsi:.1f} | ATR:{atr:.2f} | Price:{current_price:.2f} | Str:{strength:.2f}")
 
                 # Check stops
                 if ticker in risk_manager.positions:
@@ -105,8 +109,8 @@ def run_equity_cycle(reset=False):
 
                 # BUY
                 if (signal == 1 and
-                    ticker not in risk_manager.positions and
-                    len(risk_manager.positions) < risk_manager.max_positions):
+                        ticker not in risk_manager.positions and
+                        len(risk_manager.positions) < risk_manager.max_positions):
 
                     success = risk_manager.open_position(
                         ticker=ticker,
@@ -123,6 +127,8 @@ def run_equity_cycle(reset=False):
 
         except Exception as e:
             print(f"⚠️ Error processing {ticker}: {e}")
+            import traceback
+            traceback.print_exc()  # ← shows full error for debugging
             continue
 
     # Summary
@@ -147,7 +153,6 @@ def run_equity_cycle(reset=False):
 
     print("-" * 90)
 
-    # Updated logging with reset support
     log_portfolio(
         "Equity_Bot",
         risk_manager.cash,
@@ -156,7 +161,8 @@ def run_equity_cycle(reset=False):
         reset=reset
     )
 
-    logger.info(f"Summary | Cash: ${risk_manager.cash:,.2f} | Total: ${total_value:,.2f} | Positions: {len(risk_manager.positions)}")
+    logger.info(
+        f"Summary | Cash: ${risk_manager.cash:,.2f} | Total: ${total_value:,.2f} | Positions: {len(risk_manager.positions)}")
     risk_manager.save_state()
 
 
