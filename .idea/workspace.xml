@@ -2,14 +2,10 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="d7e34d00-d66f-4d1e-91fa-8a237ff45be7" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/spx_crypto_quant_lab.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/spx_crypto_quant_lab.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/live_trading/equity_bot.py" beforeDir="false" afterPath="$PROJECT_DIR$/live_trading/equity_bot.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/outputs/equity_log.csv" beforeDir="false" afterPath="$PROJECT_DIR$/outputs/equity_log.csv" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/outputs/portfolio_state_crypto.json" beforeDir="false" afterPath="$PROJECT_DIR$/outputs/portfolio_state_crypto.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/outputs/portfolio_state_equity.json" beforeDir="false" afterPath="$PROJECT_DIR$/outputs/portfolio_state_equity.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/research/best_crypto_tickers.json" beforeDir="false" afterPath="$PROJECT_DIR$/research/best_crypto_tickers.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/strategies/strategy_engine.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategies/strategy_engine.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

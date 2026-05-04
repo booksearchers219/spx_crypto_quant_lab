@@ -1,12 +1,12 @@
 {
   "tickers": [
     "ARB-USD",
-    "NEAR-USD",
     "FIL-USD",
-    "ETH-USD",
+    "NEAR-USD",
+    "AVAX-USD",
     "DOT-USD",
-    "BTC-USD",
-    "SOL-USD",
-    "LINK-USD"
+    "DOGE-USD",
+    "ETH-USD",
+    "ADA-USD"
   ]
 }

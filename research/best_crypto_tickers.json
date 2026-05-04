@@ -1,13 +1,13 @@
 {
   "tickers": [
     "ARB-USD",
-    "NEAR-USD",
     "FIL-USD",
-    "ETH-USD",
+    "NEAR-USD",
+    "AVAX-USD",
     "DOT-USD",
-    "BTC-USD",
-    "SOL-USD",
-    "LINK-USD"
+    "DOGE-USD",
+    "ETH-USD",
+    "ADA-USD"
   ],
-  "timestamp": "2026-04-28 07:22:01.690905"
+  "timestamp": "2026-05-04 06:45:41.865903"
 }
