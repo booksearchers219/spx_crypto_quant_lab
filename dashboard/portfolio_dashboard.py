@@ -1,6 +1,8 @@
 import pandas as pd
 import os
 from datetime import datetime
+import sys
+
 
 def show_dashboard():
     print("=" * 110)
@@ -21,10 +23,15 @@ def show_dashboard():
 
         print(f"📊 Log contains {len(df)} entries | Unique bots: {df['bot'].nunique()}\n")
 
-        # Latest record per bot
         latest = df.loc[df.groupby('bot')['timestamp'].idxmax()].reset_index(drop=True)
 
         print("📊 ACTIVE BOTS:\n")
+
+        # ANSI codes
+        BOLD = "\x1b[1m"
+        RESET = "\x1b[0m"
+        GREEN = "\x1b[92m"  # Bright Green
+        RED = "\x1b[91m"  # Bright Red
 
         for _, row in latest.iterrows():
             bot_name = str(row.get('bot', 'Unknown'))
@@ -48,17 +55,28 @@ def show_dashboard():
             print(f"   Name        : {bot_name}")
             print(f"   Initial     : $80,000.00")
             print(f"   Cash        : ${cash:,.2f}")
-            print(f"   Value       : ${total_value:,.2f} | P&L: ${pnl:,.2f} ({pnl_pct:+.2f}%)")
+
+            # Color + Bold logic for Value
+            if total_value > 80000.0:
+                color = GREEN
+            elif total_value < 80000.0:
+                color = RED
+            else:
+                color = ""  # neutral
+
+            value_str = f"{color}{BOLD}{total_value:,.2f}{RESET}"
+
+            print(f"   Value       : ${value_str} | P&L: ${pnl:,.2f} ({pnl_pct:+.2f}%)")
+
             print(f"   Positions   : {positions}")
             print(f"   Cycles      : {bot_cycles:,}")
             print(f"   Last Updated: {last_updated}")
             print("-" * 110)
             print()
 
-        # print("=" * 110)
-
     except Exception as e:
         print(f"⚠️ Error: {e}")
+
 
 if __name__ == "__main__":
     show_dashboard()
